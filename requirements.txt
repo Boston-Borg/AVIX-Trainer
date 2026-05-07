@@ -1,0 +1,10 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+anthropic>=0.39.0
+python-dotenv>=1.0.1
+gunicorn>=22.0.0
+
+# RAG pipeline
+pypdf>=5.0.0          # extract text from PDFs
+voyageai>=0.2.4       # embeddings (Anthropic's recommended partner)
+numpy>=1.26.0         # vector math for similarity search

@@ -1,0 +1,42 @@
+# --- Secrets (NEVER commit these) ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+build/
+dist/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# --- VS Code ---
+# Keep shared settings, ignore per-user state
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# --- macOS ---
+.DS_Store
+
+# --- Logs / temp ---
+*.log
+*.tmp
+
+# --- Knowledge base ---
+# Raw PDFs are too big for git (~140 MB total) — keep them local.
+# The pre-built RAG index (~26 MB) DOES ship to Render so the live site
+# can answer questions without rebuilding the index on every deploy.
+knowledge/*.pdf
+# (knowledge/index/ is intentionally NOT ignored — it ships with the repo.)
+knowledge/embeddings/

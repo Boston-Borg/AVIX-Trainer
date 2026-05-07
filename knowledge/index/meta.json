@@ -1,0 +1,17 @@
+{
+  "model": "voyage-3",
+  "dim": 1024,
+  "num_chunks": 6750,
+  "chunk_size": 2000,
+  "chunk_overlap": 200,
+  "sources": [
+    "14 CFR 1-59.pdf",
+    "14 CFR 60-109.pdf",
+    "AIM 2026.pdf",
+    "FAA risk management Handbook.pdf",
+    "FAA weather handbook.pdf",
+    "PHAK.pdf",
+    "PPL ACS.pdf",
+    "airplane flying handbook.pdf"
+  ]
+}

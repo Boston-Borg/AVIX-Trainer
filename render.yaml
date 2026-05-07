@@ -1,0 +1,23 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Push this repo to GitHub, then on Render click "New +" → "Blueprint" and
+# point it at the repo. Render reads this file and creates the service.
+#
+# IMPORTANT: ANTHROPIC_API_KEY is intentionally NOT in this file. After the
+# service is created, go to its dashboard → Environment → add a secret called
+# ANTHROPIC_API_KEY with your real key. That keeps the key out of git.
+
+services:
+  - type: web
+    name: avx
+    runtime: python
+    plan: free                # bump to "starter" if you outgrow free tier
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-6
+      - key: ANTHROPIC_API_KEY
+        sync: false           # forces you to set it in the dashboard, never in git

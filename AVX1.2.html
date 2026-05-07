@@ -1,0 +1,2061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AVX — Your 24/7 PPL Study Companion</title>
+  <meta name="description" content="AI-powered Private Pilot License coaching: CFI chat, study guides, and a conversational DPE oral exam simulator." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #000000;
+      color: #e2e8f0;
+    }
+    .gradient-hero { background: #000000; }
+    .glass { backdrop-filter: blur(8px); background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.18); }
+    .chat-msg-bot {
+      background: #0f0f10;
+      color: #e2e8f0;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid #262629;
+    }
+    .chat-msg-user {
+      background: #2563eb;
+      color: white;
+      border-radius: 14px 14px 2px 14px;
+    }
+    .chat-msg-system {
+      background: rgba(148, 163, 184, 0.06);
+      color: #94a3b8;
+      border: 1px dashed #334155;
+      border-radius: 10px;
+      font-size: 0.8rem;
+    }
+    .typing-dot { animation: bounce 1.4s infinite ease-in-out both; display: inline-block; width: 6px; height: 6px; background: #64748b; border-radius: 50%; margin: 0 1px; }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .nav-active { color: #60a5fa !important; border-bottom-color: #60a5fa !important; }
+    .scroll-thin::-webkit-scrollbar { width: 6px; }
+    .scroll-thin::-webkit-scrollbar-track { background: #0f172a; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .runway-stripes {
+      background-image: repeating-linear-gradient(90deg, transparent 0 10px, rgba(59, 130, 246, 0.7) 10px 22px);
+    }
+    /* form inputs in dark mode */
+    input[type=text], textarea {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    input[type=text]:focus, textarea:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+      outline: none;
+    }
+    /* Prose tweaks for dark study cards */
+    .prose-dark h3 { color: #f1f5f9; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    .prose-dark p { color: #cbd5e1; line-height: 1.65; margin-bottom: 0.75rem; }
+    .prose-dark ul, .prose-dark ol { color: #cbd5e1; margin-left: 1.25rem; margin-bottom: 0.75rem; }
+    .prose-dark ul li { list-style: disc; margin-bottom: 0.25rem; }
+    .prose-dark ol li { list-style: decimal; margin-bottom: 0.25rem; }
+    .prose-dark strong { color: #ffffff; }
+    .prose-dark em { color: #94a3b8; font-style: italic; }
+    .prose-dark pre { background: #09090b; color: #e2e8f0; padding: 0.75rem; border-radius: 6px; border: 1px solid #27272a; overflow-x: auto; font-size: 0.8rem; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Tailwind safelist for runtime-generated classes (status-only colors) -->
+  <span class="hidden bg-emerald-500/5 bg-amber-500/5 bg-rose-500/5
+               text-emerald-400 text-amber-300 text-rose-400 text-blue-400
+               border-emerald-500/40 border-amber-500/40 border-rose-500/40
+               bg-emerald-500 bg-amber-500 bg-rose-500"></span>
+
+  <!-- ============ TOP NAV ============ -->
+  <nav class="bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <button onclick="goto('home')" class="flex items-center gap-2 hover:opacity-80 transition">
+          <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <i data-lucide="plane" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <div class="text-left">
+            <div class="font-bold text-slate-100 leading-none">AVX</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">PPL Study Companion</div>
+          </div>
+        </button>
+        <div class="flex items-center gap-2">
+          <div class="hidden md:flex items-center gap-1 mr-2">
+            <button onclick="goto('home')" data-nav="home" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Home</button>
+            <button onclick="goto('chat')" data-nav="chat" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">CFI Chat</button>
+            <button onclick="goto('study')" data-nav="study" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Resources</button>
+            <button onclick="goto('test')" data-nav="test" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">DPE Oral</button>
+          </div>
+          <button id="profile-btn" aria-label="Profile" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
+            <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
+          </button>
+          <button id="mobile-menu-btn" class="md:hidden p-2 text-slate-300">
+            <i data-lucide="menu" class="w-6 h-6 text-blue-400"></i>
+          </button>
+        </div>
+      </div>
+      <div id="mobile-menu" class="md:hidden hidden border-t border-zinc-900 py-2">
+        <button onclick="goto('home')" class="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-zinc-900">Home</button>
+        <button onclick="goto('chat')" class="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-zinc-900">CFI Chat</button>
+        <button onclick="goto('study')" class="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-zinc-900">Resources</button>
+        <button onclick="goto('test')" class="block w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-zinc-900">DPE Oral</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-1">
+
+    <!-- ============ HOME ============ -->
+    <section id="view-home" class="view">
+      <div class="gradient-hero text-white relative overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 relative">
+          <div class="max-w-3xl">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full glass text-xs font-medium mb-6">
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+              Beta — built for student pilots
+            </div>
+            <h1 class="text-4xl md:text-6xl font-bold leading-tight mb-4 text-slate-50">24/7 Aviation Tutoring and DPE simulation</h1>
+            <p class="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl">A ground school for the modern age.</p>
+            <div class="flex flex-wrap gap-3">
+              <button onclick="goto('chat')" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+                <i data-lucide="message-circle" class="w-5 h-5"></i> Start a session.
+              </button>
+              <button onclick="goto('test')" class="px-6 py-3 glass text-slate-100 hover:bg-slate-800/60 font-semibold rounded-lg transition flex items-center gap-2">
+                <i data-lucide="clipboard-check" class="w-5 h-5"></i> Take DPE Oral
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="h-2 runway-stripes"></div>
+      </div>
+
+      <!-- Progress -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-10">
+        <div class="bg-zinc-950 rounded-2xl p-6 md:p-8 border border-zinc-900">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <i data-lucide="trending-up" class="w-5 h-5 text-blue-400"></i> Your Progress
+            </h2>
+            <button onclick="resetProgress()" class="text-xs text-blue-400 hover:text-blue-300 underline">Reset</button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="text-center md:text-left">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Last DPE Accuracy</div>
+              <div id="stat-last" class="text-3xl font-bold text-slate-100">—</div>
+              <div id="stat-last-sub" class="text-xs text-slate-500 mt-1">No oral taken yet</div>
+            </div>
+            <div class="text-center md:text-left">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Weekly Improvement</div>
+              <div id="stat-improvement" class="text-3xl font-bold text-slate-100">—</div>
+              <div id="stat-improvement-sub" class="text-xs text-slate-500 mt-1">Need 2+ orals in 7 days</div>
+            </div>
+            <div class="text-center md:text-left">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Highest Score</div>
+              <div id="stat-best" class="text-3xl font-bold text-blue-400">—</div>
+              <div id="stat-best-sub" class="text-xs text-slate-500 mt-1">Across all sessions</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 feature cards -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-slate-100 mb-3">Three ways to study</h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">Mix and match based on how you learn best — chat through tricky topics, read structured guides, or sit a realistic mock oral.</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          <button onclick="goto('chat')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="message-circle" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">CFI Chat</h3>
+            <p class="text-sm text-slate-400 mb-4">Ask anything, anytime. Adaptive explanations from beginner concepts to checkride-level scenarios.</p>
+            <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Open chat <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+          </button>
+
+          <button onclick="goto('study')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="library" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">Resources</h3>
+            <p class="text-sm text-slate-400 mb-4">Study guides, flash cards, and quizzes mapped to the twelve PPL knowledge areas — pick a format and a topic.</p>
+            <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Browse resources <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+          </button>
+
+          <button onclick="goto('test')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="clipboard-check" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">DPE Oral Exam</h3>
+            <p class="text-sm text-slate-400 mb-4">Conversational examiner that asks scenario questions and probes with follow-ups, just like the real checkride.</p>
+            <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Take oral <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ CFI CHAT ============ -->
+    <section id="view-chat" class="view hidden">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 class="text-3xl font-bold text-slate-100 mb-2 flex items-center gap-2">
+              <i data-lucide="message-circle" class="w-7 h-7 text-blue-400"></i> CFI Chat
+            </h1>
+            <p class="text-slate-400">Ask your AI flight instructor anything about the PPL curriculum.</p>
+          </div>
+          <button id="chat-history-toggle" class="md:hidden p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-slate-300" aria-label="Toggle past chats">
+            <i data-lucide="history" class="w-5 h-5 text-blue-400"></i>
+          </button>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-4" style="height: 70vh; min-height: 540px;">
+          <!-- Sidebar: past conversations (UI scaffold; real persistence wires in when AI agent is added) -->
+          <aside id="chat-sidebar" class="hidden md:flex flex-col w-full md:w-64 flex-shrink-0 bg-zinc-950 border border-zinc-900 rounded-2xl overflow-hidden">
+            <div class="p-3 border-b border-zinc-900">
+              <button onclick="newChat()" class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-blue-500/20">
+                <i data-lucide="plus" class="w-4 h-4"></i> New Chat
+              </button>
+            </div>
+            <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Past Conversations</div>
+            <div id="chat-history-list" class="flex-1 overflow-y-auto px-2 pb-3 scroll-thin"></div>
+            <div class="border-t border-zinc-900 p-3 text-[10px] text-slate-600 leading-relaxed">
+              Stored in this session. Persistent history will hook in when the AI agent is connected.
+            </div>
+          </aside>
+
+          <!-- Main chat panel -->
+          <div class="flex-1 flex flex-col min-w-0">
+            <!-- Quick start: user-configurable chips. Empty until the user adds topics. -->
+            <div class="mb-3">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Quick start</span>
+                <span class="text-xs text-slate-500">— click <span class="text-blue-400">+</span> and type a topic to save it for one-tap access (up to 10).</span>
+              </div>
+              <div id="quick-chips" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Chat container -->
+            <div class="bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden flex flex-col flex-1">
+              <div id="chat-messages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scroll-thin"></div>
+              <div class="border-t border-zinc-900 p-3 md:p-4 bg-black">
+                <form id="chat-form" class="flex gap-2">
+                  <input id="chat-input" type="text" placeholder="Ask about airspace, weather, regs, navigation…"
+                         class="flex-1 px-4 py-3 rounded-lg border outline-none text-sm" autocomplete="off" />
+                  <button type="submit" class="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Send</span>
+                  </button>
+                </form>
+                <div class="text-[11px] text-slate-500 mt-2">Powered by Claude. Verify safety-critical info against current FAA publications.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESOURCES (Study Guides / Flash Cards / Quizzes) ============ -->
+    <section id="view-study" class="view hidden">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-6">
+          <h1 class="text-3xl font-bold text-slate-100 mb-2 flex items-center gap-2">
+            <i data-lucide="library" class="w-7 h-7 text-blue-400"></i> Resources
+          </h1>
+          <p class="text-slate-400">Study guides, flash cards, and quizzes for every PPL knowledge area. Pick a format and a topic.</p>
+        </div>
+
+        <div id="resource-grid" class="grid md:grid-cols-3 gap-4"></div>
+
+        <!-- Detail modal -->
+        <div id="resource-detail" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto" onclick="closeResource(event)">
+          <div class="min-h-screen flex items-start justify-center p-4 md:p-8">
+            <div class="bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-900 max-w-3xl w-full my-8" onclick="event.stopPropagation()">
+              <div class="sticky top-0 bg-zinc-950 border-b border-zinc-900 p-4 md:p-6 flex items-center justify-between rounded-t-2xl">
+                <div>
+                  <div id="resource-detail-kind" class="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-1"></div>
+                  <h2 id="resource-detail-title" class="text-xl md:text-2xl font-bold text-slate-100"></h2>
+                </div>
+                <button onclick="closeResource()" class="p-2 hover:bg-zinc-900 rounded-lg text-slate-300">
+                  <i data-lucide="x" class="w-5 h-5 text-blue-400"></i>
+                </button>
+              </div>
+              <div id="resource-detail-body" class="p-4 md:p-6 prose-dark"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DPE ORAL (CONVERSATIONAL) ============ -->
+    <section id="view-test" class="view hidden">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Mode picker -->
+        <div id="test-picker">
+          <div class="mb-6">
+            <h1 class="text-3xl font-bold text-slate-100 mb-2 flex items-center gap-2">
+              <i data-lucide="clipboard-check" class="w-7 h-7 text-blue-400"></i> DPE Oral Exam
+            </h1>
+            <p class="text-slate-400">Pick your difficulty. Higher tiers ask harder scenario questions <em class="text-slate-200 not-italic">and</em> probe with deeper follow-ups.</p>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-4">
+            <button onclick="startTest('beginner')" class="text-left bg-zinc-950 rounded-2xl p-6 border-2 border-zinc-900 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 transition">
+              <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <i data-lucide="sprout" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <span class="text-xs px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-slate-300 rounded font-semibold">EASY</span>
+              </div>
+              <h3 class="font-bold text-lg text-slate-100 mb-1">Beginner Oral</h3>
+              <ul class="text-sm text-slate-400 space-y-1">
+                <li>Encouraging tone</li>
+                <li>Fundamental questions</li>
+                <li>No follow-ups — clear right/wrong</li>
+                <li>You set the session length</li>
+              </ul>
+            </button>
+
+            <button onclick="startTest('intermediate')" class="text-left bg-zinc-950 rounded-2xl p-6 border-2 border-zinc-900 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 transition">
+              <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <i data-lucide="target" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <span class="text-xs px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-slate-300 rounded font-semibold">MEDIUM</span>
+              </div>
+              <h3 class="font-bold text-lg text-slate-100 mb-1">Intermediate Oral</h3>
+              <ul class="text-sm text-slate-400 space-y-1">
+                <li>Probing tone</li>
+                <li>Scenario questions</li>
+                <li>One follow-up per topic</li>
+                <li>You set the session length</li>
+              </ul>
+            </button>
+
+            <button onclick="startTest('advanced')" class="text-left bg-zinc-950 rounded-2xl p-6 border-2 border-zinc-900 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 transition">
+              <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <i data-lucide="award" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <span class="text-xs px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded font-semibold">CHECKRIDE</span>
+              </div>
+              <h3 class="font-bold text-lg text-slate-100 mb-1">Advanced Oral</h3>
+              <ul class="text-sm text-slate-400 space-y-1">
+                <li>Rigorous DPE tone</li>
+                <li>Deep checkride scenarios</li>
+                <li>Multiple drill-down follow-ups</li>
+                <li>You set the session length</li>
+              </ul>
+            </button>
+          </div>
+        </div>
+
+        <!-- Active oral exam -->
+        <div id="test-active" class="hidden">
+          <div class="bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden flex flex-col" style="height: 75vh; min-height: 560px;">
+            <div class="bg-black border-b border-zinc-900 px-4 py-3 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <i data-lucide="user-check" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <div>
+                  <div class="text-xs uppercase tracking-wider text-slate-500" id="test-mode-label">Beginner</div>
+                  <div class="text-sm font-semibold text-slate-100">Question <span id="q-current">—</span></div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs uppercase tracking-wider text-slate-500">Time</div>
+                <div id="timer" class="text-xl font-bold tabular-nums text-slate-100">30:00</div>
+              </div>
+            </div>
+            <div class="h-1 bg-zinc-900">
+              <div id="progress-bar" class="h-full bg-blue-500 transition-all" style="width: 0%"></div>
+            </div>
+            <div id="dpe-messages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scroll-thin"></div>
+            <div class="border-t border-zinc-900 p-3 md:p-4 bg-black">
+              <form id="dpe-form" class="flex gap-2 items-end">
+                <textarea id="dpe-input" rows="2" placeholder="Type your answer to the examiner…"
+                          class="flex-1 px-4 py-3 rounded-lg border outline-none text-sm resize-none" autocomplete="off"></textarea>
+                <button type="submit" class="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                  <i data-lucide="send" class="w-4 h-4"></i>
+                  <span class="hidden sm:inline">Answer</span>
+                </button>
+              </form>
+              <div class="flex justify-between items-center mt-2">
+                <button onclick="dpeSkip()" class="text-xs text-blue-400 hover:text-blue-300 underline">I don't know — move on</button>
+                <button onclick="abandonTest()" class="text-xs text-blue-400 hover:text-blue-300 underline">End oral early</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="test-results" class="hidden"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="bg-black border-t border-zinc-900 text-slate-400 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row justify-between gap-4 text-sm">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="plane" class="w-4 h-4 text-blue-400"></i>
+          <span class="font-bold text-slate-100">AVX</span>
+          <span class="text-xs px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-slate-300 rounded">Beta</span>
+        </div>
+        <p class="text-xs">Educational tool for PPL students. Always verify with current FAA publications and your CFI.</p>
+      </div>
+      <div class="text-xs">
+        <div>© 2026 AVX</div>
+        <div class="text-slate-500 mt-1">Not a substitute for FAA-required ground or flight training.</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ APP SCRIPT ============ -->
+  <script>
+    // ============================================================
+    //                    APP STATE
+    // ============================================================
+    const state = {
+      view: 'home',
+      progress: {
+        topicsViewed: new Set(),     // still drives the green checkmark on study cards
+        testHistory: [],             // [{score, timestamp}] — drives all three stats
+      },
+      // Chat state: a list of sessions + the active one. UI is fully wired;
+      // the data layer is in-memory for now. When the AI agent is added, swap
+      // the in-memory store for a persistence backend (localStorage, server,
+      // or Cowork artifacts) — the function surface (newChat, switchChat,
+      // pushChatMsg) stays the same.
+      chat: { sessions: [], currentId: null, quickStarts: [] },
+      test: null,
+    };
+
+    // ============================================================
+    //                    NAVIGATION
+    // ============================================================
+    function goto(view) {
+      state.view = view;
+      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+      document.getElementById('view-' + view).classList.remove('hidden');
+      document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('nav-active'));
+      const active = document.querySelector(`.nav-link[data-nav="${view}"]`);
+      if (active) active.classList.add('nav-active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('mobile-menu').classList.add('hidden');
+
+      if (view === 'chat') {
+        // Make sure we always have at least one session, then seed it on first ever visit.
+        ensureChatSession();
+        const s = currentChatSession();
+        if (s && !s.seeded) seedChat();
+        renderChatSidebar();
+        renderQuickChips();
+      }
+      if (view === 'study') renderResourceGrid();
+    }
+
+    // ============================================================
+    //                CHAT SESSIONS (sidebar + history)
+    // ============================================================
+    // Replaces the old single-history model. Each session has its own
+    // message list, title, seeded flag, and timestamp. The UI is fully
+    // wired; replace the in-memory store below with real persistence
+    // when the AI agent is connected.
+    function newChatId() {
+      return 'c-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    }
+    function ensureChatSession() {
+      if (!state.chat.sessions.length || !state.chat.currentId) {
+        const id = newChatId();
+        state.chat.sessions.unshift({
+          id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+        });
+        state.chat.currentId = id;
+      }
+    }
+    function currentChatSession() {
+      return state.chat.sessions.find(s => s.id === state.chat.currentId) || null;
+    }
+    function newChat() {
+      const id = newChatId();
+      state.chat.sessions.unshift({
+        id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+      });
+      state.chat.currentId = id;
+      document.getElementById('chat-messages').innerHTML = '';
+      seedChat();
+      renderChatSidebar();
+      // close mobile drawer if open
+      const sb = document.getElementById('chat-sidebar');
+      if (sb && window.innerWidth < 768) sb.classList.add('hidden');
+    }
+    function switchChat(id) {
+      state.chat.currentId = id;
+      const s = currentChatSession();
+      const wrap = document.getElementById('chat-messages');
+      wrap.innerHTML = '';
+      if (s) for (const m of s.messages) addMsg('chat-messages', m.role, m.html);
+      renderChatSidebar();
+      // close mobile drawer
+      const sb = document.getElementById('chat-sidebar');
+      if (sb && window.innerWidth < 768) sb.classList.add('hidden');
+    }
+    function renderChatSidebar() {
+      const list = document.getElementById('chat-history-list');
+      if (!list) return;
+      if (!state.chat.sessions.length) {
+        list.innerHTML = `<div class="text-xs text-slate-500 px-2 py-3 text-center">No past chats yet</div>`;
+        return;
+      }
+      list.innerHTML = state.chat.sessions.map(s => {
+        const isCurrent = s.id === state.chat.currentId;
+        const cls = isCurrent
+          ? 'bg-zinc-900 border-zinc-800 text-slate-100'
+          : 'border-transparent hover:bg-zinc-900 text-slate-400 hover:text-slate-200';
+        return `<button onclick="switchChat('${s.id}')" class="block w-full text-left px-3 py-2 mb-1 rounded-lg border ${cls} transition">
+          <div class="text-sm truncate">${escapeHtml(s.title || 'New chat')}</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">${timeAgo(s.createdAt)}</div>
+        </button>`;
+      }).join('');
+    }
+    function pushChatMsg(role, html) {
+      const s = currentChatSession();
+      if (!s) return;
+      s.messages.push({ role, html });
+      addMsg('chat-messages', role, html);
+      // First user message becomes the session title
+      if (role === 'user' && (!s.title || s.title === 'New chat')) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        s.title = (tmp.textContent || tmp.innerText || '').trim().slice(0, 40);
+        renderChatSidebar();
+      }
+    }
+    document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+      document.getElementById('mobile-menu').classList.toggle('hidden');
+    });
+    document.getElementById('chat-history-toggle').addEventListener('click', () => {
+      document.getElementById('chat-sidebar').classList.toggle('hidden');
+    });
+
+    // ============================================================
+    //                    PROGRESS
+    // ============================================================
+    function timeAgo(ts) {
+      const diff = Date.now() - ts;
+      const mins = Math.round(diff / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + ' min ago';
+      const hrs = Math.round(mins / 60);
+      if (hrs < 24) return hrs + ' hr ago';
+      const days = Math.round(hrs / 24);
+      return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+    }
+
+    function computeProgressStats() {
+      const hist = state.progress.testHistory;
+      // Last DPE accuracy
+      const last = hist.length ? hist[hist.length - 1] : null;
+
+      // Highest score
+      let best = null;
+      if (hist.length) best = Math.max(...hist.map(h => h.score));
+
+      // Weekly improvement: delta from oldest to newest in the trailing 7-day window.
+      // If only 1 session in window, fall back to: (latest score) - (most recent score *before* the window).
+      const now = Date.now();
+      const weekMs = 7 * 24 * 60 * 60 * 1000;
+      const weekAgo = now - weekMs;
+      const inWeek = hist.filter(h => h.timestamp >= weekAgo);
+      let improvement = null;
+      let improvementBase = '';
+      if (inWeek.length >= 2) {
+        improvement = inWeek[inWeek.length - 1].score - inWeek[0].score;
+        improvementBase = `${inWeek.length} orals this week`;
+      } else if (inWeek.length === 1 && hist.length >= 2) {
+        // compare most recent (this week) vs most recent before the week
+        const beforeWindow = hist.filter(h => h.timestamp < weekAgo);
+        if (beforeWindow.length) {
+          improvement = inWeek[0].score - beforeWindow[beforeWindow.length - 1].score;
+          improvementBase = 'vs your last oral';
+        }
+      }
+
+      return { last, best, improvement, improvementBase };
+    }
+
+    function updateProgressUI() {
+      const { last, best, improvement, improvementBase } = computeProgressStats();
+
+      // Last DPE accuracy
+      const lastEl = document.getElementById('stat-last');
+      const lastSub = document.getElementById('stat-last-sub');
+      if (last) {
+        lastEl.textContent = last.score + '%';
+        lastEl.className = 'text-3xl font-bold ' + (last.score >= 70 ? 'text-emerald-400' : 'text-rose-400');
+        lastSub.textContent = timeAgo(last.timestamp);
+      } else {
+        lastEl.textContent = '—';
+        lastEl.className = 'text-3xl font-bold text-slate-100';
+        lastSub.textContent = 'No oral taken yet';
+      }
+
+      // Weekly improvement
+      const impEl = document.getElementById('stat-improvement');
+      const impSub = document.getElementById('stat-improvement-sub');
+      if (improvement === null) {
+        impEl.textContent = '—';
+        impEl.className = 'text-3xl font-bold text-slate-100';
+        impSub.textContent = state.progress.testHistory.length === 0 ? 'Need 2+ orals in 7 days' : 'Take another oral to compare';
+      } else {
+        const sign = improvement > 0 ? '+' : (improvement < 0 ? '' : '±');
+        impEl.textContent = sign + improvement + '%';
+        if (improvement > 0) impEl.className = 'text-3xl font-bold text-emerald-400';
+        else if (improvement < 0) impEl.className = 'text-3xl font-bold text-rose-400';
+        else impEl.className = 'text-3xl font-bold text-slate-300';
+        impSub.textContent = improvementBase;
+      }
+
+      // Highest score
+      const bestEl = document.getElementById('stat-best');
+      const bestSub = document.getElementById('stat-best-sub');
+      if (best !== null) {
+        bestEl.textContent = best + '%';
+        bestSub.textContent = `Across ${state.progress.testHistory.length} session${state.progress.testHistory.length === 1 ? '' : 's'}`;
+      } else {
+        bestEl.textContent = '—';
+        bestSub.textContent = 'Across all sessions';
+      }
+    }
+    function resetProgress() {
+      state.progress = { topicsViewed: new Set(), testHistory: [] };
+      updateProgressUI();
+    }
+
+    // ============================================================
+    //                    CFI CHAT
+    // ============================================================
+    const cfiResponses = [
+      {
+        keywords: ['airspace', 'class a', 'class b', 'class c', 'class d', 'class e', 'class g'],
+        reply: `<strong>U.S. Airspace Classes</strong> follow a top-down structure:
+<ul class="list-disc ml-5 mt-2 space-y-1">
+  <li><strong>Class A</strong> — 18,000 ft MSL up to FL600. IFR only, ATC clearance required.</li>
+  <li><strong>Class B</strong> — Around the busiest airports (JFK, LAX, etc.). Looks like an "upside-down wedding cake." ATC clearance required for all aircraft.</li>
+  <li><strong>Class C</strong> — Around medium-traffic towered airports. Two-way radio comms + Mode C transponder needed.</li>
+  <li><strong>Class D</strong> — Most towered airports. Two-way radio comms required before entry.</li>
+  <li><strong>Class E</strong> — Controlled airspace that isn't A/B/C/D. Default starts at 1,200 ft AGL or 700 ft AGL near airports with instrument approaches.</li>
+  <li><strong>Class G</strong> — Uncontrolled. Below Class E. VFR pilot's responsibility for separation.</li>
+</ul>
+<p class="mt-2 text-sm text-slate-400">Want me to drill you on memory items like equipment requirements or weather minimums for each class?</p>`,
+      },
+      {
+        keywords: ['vfr', 'weather minimum', 'cloud clearance', 'visibility'],
+        reply: `<strong>VFR Weather Minimums (FAR 91.155)</strong> — the classic memory aids:
+<ul class="list-disc ml-5 mt-2 space-y-1">
+  <li><strong>Class B:</strong> 3 SM visibility, "clear of clouds"</li>
+  <li><strong>Class C/D/E (below 10,000 MSL):</strong> 3 SM, <em>3-152</em> → 500 below, 1,000 above, 2,000 horizontal</li>
+  <li><strong>Class E at/above 10,000 MSL:</strong> 5 SM, <em>5-111</em> → 1,000 below, 1,000 above, 1 SM horizontal</li>
+  <li><strong>Class G (day, ≤1,200 ft AGL):</strong> 1 SM, clear of clouds</li>
+  <li><strong>Class G (night):</strong> 3 SM, 3-152</li>
+</ul>
+<p class="mt-2 text-sm text-slate-400">A common test trap: the rules at 10,000 MSL change because you can encounter high-speed jets descending — more visibility, more separation.</p>`,
+      },
+      {
+        keywords: ['metar', 'taf', 'weather report', 'read'],
+        reply: `<strong>Reading a METAR</strong> — they follow a fixed sequence:
+<pre class="bg-black border border-zinc-800 p-3 rounded text-xs overflow-x-auto mt-2 text-slate-200">METAR KSFO 121856Z 28012KT 10SM FEW015 SCT200 18/12 A3001 RMK AO2</pre>
+<ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+  <li><strong>KSFO</strong> — station ID</li>
+  <li><strong>121856Z</strong> — 12th of month, 18:56 Zulu</li>
+  <li><strong>28012KT</strong> — wind 280° at 12 kt</li>
+  <li><strong>10SM</strong> — 10 statute miles visibility</li>
+  <li><strong>FEW015 SCT200</strong> — few clouds at 1,500 ft, scattered at 20,000 ft AGL</li>
+  <li><strong>18/12</strong> — temp 18°C, dew point 12°C (a small spread = fog risk)</li>
+  <li><strong>A3001</strong> — altimeter 30.01 inHg</li>
+</ul>
+<p class="mt-2 text-sm text-slate-400">TAFs use the same code but cover a forecast period instead of a snapshot.</p>`,
+      },
+      {
+        keywords: ['stall', 'angle of attack', 'aoa'],
+        reply: `<strong>Stalls — the truth most students miss:</strong> a stall is caused by exceeding the <strong>critical angle of attack</strong>, NOT by airspeed alone.
+<p class="mt-2 text-sm">An aircraft can stall at <em>any</em> airspeed, in <em>any</em> attitude, at <em>any</em> power setting. Accelerated stalls in steep turns are a perfect example — you're well above your published Vs1 but still exceed the critical AoA.</p>
+<p class="mt-2 text-sm"><strong>Recovery:</strong> reduce AoA (forward yoke pressure), add full power, level the wings, return to coordinated flight. The order matters — pitch first, then power.</p>`,
+      },
+      {
+        keywords: ['engine failure', 'emergency', 'forced landing'],
+        reply: `<strong>Engine Failure in Flight — Memory Flow:</strong>
+<ol class="list-decimal ml-5 mt-2 space-y-1 text-sm">
+  <li><strong>Aviate</strong> — pitch for best glide speed (typically ~65 KIAS for a C172)</li>
+  <li><strong>Pick a field</strong> — into the wind if possible, with clear approach path</li>
+  <li><strong>Restart attempt</strong> — fuel selector both/on, mixture rich, carb heat on, mags both, primer in/locked</li>
+  <li><strong>Declare</strong> — squawk 7700, transmit MAYDAY on 121.5 if no other contact</li>
+  <li><strong>Secure</strong> — once landing is assured: fuel off, mixture cut-off, mags off, master off, doors cracked</li>
+</ol>
+<p class="mt-2 text-sm text-slate-400">The order is pitch → plan → procedure. Don't reverse it.</p>`,
+      },
+      {
+        keywords: ['navigation', 'pilotage', 'dead reckoning', 'vor'],
+        reply: `<strong>VFR Navigation</strong> blends three techniques:
+<ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+  <li><strong>Pilotage</strong> — visual reference to landmarks (rivers, towns, airports)</li>
+  <li><strong>Dead reckoning</strong> — flying computed headings and times based on winds aloft</li>
+  <li><strong>Radio nav (VOR/GPS)</strong> — backup using fixed ground stations or satellites</li>
+</ul>
+<p class="mt-2 text-sm">A solid cross-country plan uses all three: you fly a heading (DR), confirm landmarks (pilotage), and cross-check with GPS or VOR. Never rely on just one.</p>`,
+      },
+      {
+        keywords: ['regulation', 'far', 'currency', 'medical', 'biennial'],
+        reply: `<strong>Key PPL Regulations to memorize:</strong>
+<ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+  <li><strong>Currency to carry passengers (§61.57):</strong> 3 takeoffs and landings within 90 days. Tailwheel: must be to a full stop. Night: also full stop, within 1 hour after sunset to 1 hour before sunrise.</li>
+  <li><strong>Flight review (§61.56):</strong> required every 24 calendar months — at least 1 hour ground + 1 hour flight with a CFI.</li>
+  <li><strong>3rd-class medical:</strong> valid 60 calendar months if under 40, 24 months if over 40 (BasicMed is an alternative).</li>
+  <li><strong>VFR fuel reserves (§91.151):</strong> 30 minutes day, 45 minutes night, at normal cruise.</li>
+</ul>`,
+      },
+      {
+        keywords: ['density altitude', 'performance', 'takeoff distance'],
+        reply: `<strong>Density Altitude</strong> = pressure altitude corrected for non-standard temperature. It's what your aircraft actually "feels."
+<p class="mt-2 text-sm">High DA = thinner air = less lift, less thrust, less prop efficiency. The killer combo: <strong>hot, high, and humid</strong> — also called the "three H's."</p>
+<p class="mt-2 text-sm">A field at 5,000 ft elevation on a 95°F day can have a DA over 8,000 ft. Your 1,200-ft published takeoff roll might double. Always check the POH performance charts — never assume.</p>`,
+      },
+      {
+        keywords: ['transponder', 'mode c', 'ads-b'],
+        reply: `<strong>Transponder & ADS-B requirements (§91.215, §91.225):</strong>
+<ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+  <li>Mode C transponder required: in/above Class C, in Class B, above the ceiling of Class B up to 10,000 MSL, and at/above 10,000 MSL excluding airspace below 2,500 AGL.</li>
+  <li>ADS-B Out required in essentially the same airspace as Mode C since Jan 1, 2020.</li>
+  <li>VFR squawk code is <strong>1200</strong>. Memorize emergency codes: <strong>7500</strong> (hijack), <strong>7600</strong> (lost comms), <strong>7700</strong> (general emergency).</li>
+</ul>`,
+      },
+      {
+        keywords: ['hypoxia', 'human factor', 'spatial disorientation', 'fatigue'],
+        reply: `<strong>Aeromedical Factors</strong> — the silent killers:
+<ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+  <li><strong>Hypoxia:</strong> oxygen deficiency. PPL-relevant rule: pilots must use supplemental O2 above 12,500 MSL after 30 minutes, and continuously above 14,000 MSL.</li>
+  <li><strong>Spatial disorientation:</strong> when sensations contradict instruments. Trust your instruments; the inner ear lies in IMC.</li>
+  <li><strong>IMSAFE checklist:</strong> Illness, Medication, Stress, Alcohol (8 hrs bottle-to-throttle, .04% BAC max), Fatigue, Eating.</li>
+  <li><strong>Hyperventilation:</strong> often confused with hypoxia. Slow your breathing, breathe into a bag if needed.</li>
+</ul>`,
+      },
+    ];
+    function findCfiReply(text) {
+      const lower = text.toLowerCase();
+      for (const r of cfiResponses) {
+        if (r.keywords.some(k => lower.includes(k))) return r.reply;
+      }
+      return null;
+    }
+    function seedChat() {
+      ensureChatSession();
+      const s = currentChatSession();
+      if (!s || s.seeded) return;
+      s.seeded = true;
+      pushChatMsg('bot', `<strong>Welcome aboard 👋</strong><br>I'm your AI CFI. Ask me about anything in the PPL curriculum — airspace, weather, regs, navigation, aerodynamics, emergencies. Try a quick-start chip above, or just type a question.`);
+    }
+    function addMsg(containerId, role, html) {
+      const wrap = document.getElementById(containerId);
+      const div = document.createElement('div');
+      div.className = 'fade-in flex ' + (role === 'user' ? 'justify-end' : (role === 'system' ? 'justify-center' : 'justify-start'));
+      const inner = document.createElement('div');
+      const cls = role === 'user' ? 'chat-msg-user' : (role === 'system' ? 'chat-msg-system' : 'chat-msg-bot');
+      inner.className = cls + ' max-w-[85%] px-4 py-3 text-sm shadow-sm';
+      inner.innerHTML = html;
+      div.appendChild(inner);
+      wrap.appendChild(div);
+      wrap.scrollTop = wrap.scrollHeight;
+      lucide.createIcons();
+    }
+    function showTyping(containerId) {
+      const wrap = document.getElementById(containerId);
+      const div = document.createElement('div');
+      div.id = 'typing-' + containerId;
+      div.className = 'flex justify-start fade-in';
+      div.innerHTML = `<div class="chat-msg-bot px-4 py-3"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+      wrap.appendChild(div);
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+    function clearTyping(containerId) {
+      const t = document.getElementById('typing-' + containerId);
+      if (t) t.remove();
+    }
+
+    // Claude API integration — calls the Flask backend at /api/chat,
+    // which holds the API key and forwards the request to Anthropic.
+    // The backend expects: { messages: [{role, content}, ...], system: "..." }
+    // and returns { reply: "...", model: "..." }.
+    const CFI_SYSTEM_PROMPT = `You are AVX, an FAA-accurate Certified Flight Instructor (CFI) coaching a student pilot for the Private Pilot License (PPL) checkride.
+
+Style:
+- Precise and conversational. No filler.
+- When citing rules, reference the specific FAR (e.g., "14 CFR 91.155") or AIM section.
+- Use **bold** for key terms and acronyms.
+- Keep answers focused — short answer first, then detail if useful.
+- If a question is outside PPL aviation, redirect briefly back to the curriculum.`;
+
+    async function sendToClaudeAPI(message, history) {
+      // Convert UI history to the Anthropic format and strip HTML.
+      // history items look like: { role: 'user' | 'bot' | 'system', html: '...' }
+      const stripHtml = (html) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return (tmp.textContent || tmp.innerText || '').trim();
+      };
+      const messages = history
+        .filter(m => m.role === 'user' || m.role === 'bot')
+        .map(m => ({
+          role: m.role === 'bot' ? 'assistant' : 'user',
+          content: stripHtml(m.html)
+        }))
+        .filter(m => m.content.length > 0);
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        return formatClaudeReply(data.reply || '');
+      } catch (err) {
+        return `<span class="text-rose-400"><strong>Error:</strong> ${escapeHtml(err.message)}</span><br><span class="text-slate-500 text-xs">Make sure the Flask server is running and your API key is set in .env.</span>`;
+      }
+    }
+
+    // Render a plain-text/Markdown-ish Claude reply as safe HTML.
+    // We escape first (so the model can't inject HTML), then re-introduce
+    // a small whitelist of formatting: **bold**, *italic*, `code`, newlines.
+    function formatClaudeReply(text) {
+      const esc = escapeHtml(text);
+      return esc
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/`([^`\n]+?)`/g, '<code class="bg-zinc-800 px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(/\n/g, '<br>');
+    }
+    document.getElementById('chat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      ensureChatSession();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      pushChatMsg('user', escapeHtml(text));
+      const session = currentChatSession();
+      showTyping('chat-messages');
+      const reply = await sendToClaudeAPI(text, session.messages);
+      clearTyping('chat-messages');
+      pushChatMsg('bot', reply);
+    });
+    // ============================================================
+    //               USER-CONFIGURABLE QUICK-START CHIPS
+    // ============================================================
+    const QUICK_START_MAX = 10;
+
+    function renderQuickChips() {
+      const wrap = document.getElementById('quick-chips');
+      if (!wrap) return;
+      const chips = state.chat.quickStarts.map((topic, i) => `
+        <span class="inline-flex items-center bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-300 hover:text-slate-100 rounded-full transition group">
+          <button onclick="askQuickStart(${i})" class="pl-3 pr-2 py-1.5 text-xs">${escapeHtml(topic)}</button>
+          <button onclick="removeQuickStart(${i})" class="pr-2.5 py-1.5 text-slate-500 hover:text-rose-400 text-sm leading-none" aria-label="Remove">×</button>
+        </span>
+      `).join('');
+
+      const addBtn = state.chat.quickStarts.length < QUICK_START_MAX
+        ? `<button id="quick-add-btn" onclick="startAddingQuickStart()" class="px-3 py-1.5 text-xs bg-zinc-950 border border-dashed border-zinc-700 hover:border-blue-500/60 hover:text-slate-100 text-slate-400 rounded-full transition inline-flex items-center gap-1">
+             <span class="text-blue-400 font-bold">+</span> Add topic
+           </button>`
+        : `<span class="text-[11px] text-slate-500 self-center">Maximum 10 topics — remove one to add another.</span>`;
+
+      wrap.innerHTML = chips + addBtn;
+    }
+
+    function askQuickStart(i) {
+      const topic = state.chat.quickStarts[i];
+      if (topic) quickAsk(topic);
+    }
+
+    function removeQuickStart(i) {
+      state.chat.quickStarts.splice(i, 1);
+      renderQuickChips();
+    }
+
+    function startAddingQuickStart() {
+      const wrap = document.getElementById('quick-chips');
+      const btn = document.getElementById('quick-add-btn');
+      if (!btn) return;
+      // Replace + button with an inline input shaped like a chip.
+      btn.outerHTML = `<input id="quick-add-input" type="text" placeholder="Type a topic and press Enter…" maxlength="40"
+        class="px-3 py-1.5 text-xs bg-zinc-900 border border-blue-500/60 text-slate-100 rounded-full outline-none w-56" />`;
+      const input = document.getElementById('quick-add-input');
+      input.focus();
+      let committed = false;
+      const commit = () => {
+        if (committed) return;
+        committed = true;
+        const v = input.value.trim();
+        if (v && state.chat.quickStarts.length < QUICK_START_MAX) {
+          state.chat.quickStarts.push(v);
+        }
+        renderQuickChips();
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); committed = true; renderQuickChips(); }
+      });
+      input.addEventListener('blur', commit);
+    }
+
+    function quickAsk(q) {
+      goto('chat');
+      setTimeout(() => {
+        document.getElementById('chat-input').value = q;
+        document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+      }, 200);
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ============================================================
+    //                    STUDY GUIDES
+    // ============================================================
+    // ============================================================
+    //          RESOURCES — 12 PPL ACS-aligned topics × 3 formats
+    // ============================================================
+    // `studyBody` is the long-form study guide HTML. Flash Cards and
+    // Quizzes share the same topic list but currently render a "coming
+    // soon" stub — wire the real content/agent in via openResource().
+    const resourceTopics = [
+      {
+        id: 'pilot-quals', name: 'Pilot qualifications and limitations',
+        studyBody: `<h3>Certificates and Ratings</h3><p>The Private Pilot Certificate (PPL) is your foundation. Ratings (instrument, multi-engine, complex, high-performance) sit on top of it. The PPL alone covers the category and class you trained in — typically Airplane Single Engine Land.</p>
+        <h3>Privileges</h3><ul><li>Carry passengers for non-business purposes</li><li>Share operating expenses pro-rata (you must include yourself; never charge for piloting)</li><li>Fly for charity events with restrictions (§61.113)</li><li>Act as PIC of any aircraft you're rated and current in</li></ul>
+        <h3>Limitations</h3><ul><li>Cannot fly for compensation or hire (with the narrow expense/charity exceptions above)</li><li>Cannot operate as required crew on a flight requiring two pilots unless that role is permitted</li><li>VFR only unless you also hold an instrument rating</li></ul>
+        <h3>Currency to Carry Passengers (§61.57)</h3><p>3 takeoffs and landings in the preceding 90 days, in the same category and class. To carry passengers at night (1 hour after sunset to 1 hour before sunrise), those landings must be to a full stop. Tailwheel landings — day or night — must be to a full stop.</p>
+        <h3>Flight Review (§61.56)</h3><p>Required every 24 calendar months: at least 1 hour ground + 1 hour flight with a CFI. A new certificate or rating resets the clock.</p>
+        <h3>Medical Certification</h3><p>3rd-class medical: 60 calendar months under age 40, 24 calendar months age 40+. <strong>BasicMed</strong> is an alternative for many private operations. <strong>Sport pilot</strong> ops only require a valid driver's license.</p>
+        <h3>Logbook</h3><p>You must log time used for currency, ratings, and flight reviews. Endorsements (solo, high-performance, complex, tailwheel, etc.) live in your logbook.</p>`,
+      },
+      {
+        id: 'airworthiness', name: 'Aircraft airworthiness requirements',
+        studyBody: `<h3>Required Documents Onboard — ARROW</h3><ul><li><strong>A</strong>irworthiness certificate</li><li><strong>R</strong>egistration</li><li><strong>R</strong>adio station license (international ops only)</li><li><strong>O</strong>perating limitations (POH/AFM, placards, markings)</li><li><strong>W</strong>eight & balance</li></ul>
+        <h3>Required Inspections — AAV1ATE</h3><ul><li><strong>Annual</strong> — every 12 calendar months</li><li><strong>ADs</strong> — Airworthiness Directives, mandatory and recurring per the AD</li><li><strong>VOR</strong> — every 30 days for IFR ops</li><li><strong>100-hour</strong> — only for aircraft used for hire (rental for instruction or carrying pax)</li><li><strong>Altimeter & pitot-static</strong> — 24 calendar months for IFR</li><li><strong>Transponder</strong> — 24 calendar months</li><li><strong>ELT</strong> — 12 calendar months; battery replaced after half its useful life or 1 hour cumulative use</li></ul>
+        <h3>ADs vs Service Bulletins</h3><p>An <strong>AD</strong> is FAA-issued and mandatory — comply by the deadline or the aircraft is unairworthy. A <strong>Service Bulletin</strong> is from the manufacturer and is generally optional unless the FAA elevates it to an AD.</p>
+        <h3>MEL / NEF</h3><p>A <strong>Minimum Equipment List</strong> tells you which inoperative equipment is acceptable and under what conditions. Without an MEL, FAR 91.213 governs: determine the equipment isn't required for the flight, properly placard or remove it, and make a maintenance log entry.</p>
+        <h3>Owner vs PIC Responsibility</h3><p>The owner is responsible for keeping the aircraft airworthy. The PIC is responsible for determining whether it is airworthy before each flight (§91.7).</p>`,
+      },
+      {
+        id: 'preflight', name: 'Preflight procedures',
+        studyBody: `<h3>Required Preflight Action — NWKRAFT (§91.103)</h3><ul><li><strong>N</strong>OTAMs</li><li><strong>W</strong>eather (current and forecast)</li><li><strong>K</strong>nown traffic delays / ATC</li><li><strong>R</strong>unway lengths</li><li><strong>A</strong>lternates available</li><li><strong>F</strong>uel requirements</li><li><strong>T</strong>akeoff and landing distance</li></ul>
+        <h3>Inspection Flow</h3><p>Use the POH checklist. Typical order: cabin → walk-around starting at the propeller and circling clockwise (or per POH). Don't skip steps because you're in a hurry — the preflight is your last chance to catch a problem on the ground.</p>
+        <h3>Fuel Sumping</h3><p>Sump every drain — wing tanks, gascolator, low points. Look for water (clear, separates), debris, and the right fuel grade. <strong>100LL is blue</strong>; Jet A is clear/straw — never confuse the two.</p>
+        <h3>Weight & Balance</h3><p>Compute every flight. Stay within max gross weight and within the CG envelope at takeoff <em>and</em> landing — fuel burn shifts CG.</p>
+        <h3>Performance Calculations</h3><p>Using current weather and weight: takeoff distance, climb gradient, runway required, landing distance. <strong>Density altitude</strong> can dramatically extend takeoff roll on a hot/high day.</p>
+        <h3>Passenger Briefing — SAFETY</h3><ul><li><strong>S</strong>eatbelts on, doors latched</li><li><strong>A</strong>ir vents and environmental controls</li><li><strong>F</strong>ire extinguisher / fire procedures</li><li><strong>E</strong>xits — primary and emergency</li><li><strong>T</strong>raffic — sterile cockpit during critical phases</li><li><strong>Y</strong>our questions before we go</li></ul>`,
+      },
+      {
+        id: 'postflight', name: 'Postflight procedures',
+        studyBody: `<h3>Securing the Aircraft</h3><ul><li>Park into the wind if possible</li><li>Set parking brake (if equipped) or chocks</li><li>Tie-downs at all designated points</li><li>Control lock or seatbelt-loop the yoke</li><li>Pitot cover, intake covers, any external plugs</li><li>Remove keys, lock doors</li></ul>
+        <h3>Cool-Down</h3><p>For turbocharged engines especially, allow ~5 minutes at low power before shutdown to prevent thermal shock and oil coking on the turbo bearings.</p>
+        <h3>Shutdown Flow (typical normally aspirated)</h3><p>Throttle idle → electrics off (avionics, beacon, lights) → mixture cut-off → ignition off → master off → fuel selector OFF (or per POH). Always follow your specific checklist.</p>
+        <h3>Logbook Entry</h3><p>Aircraft tach/Hobbs time, your flight time, type of flight (XC, night, instrument, simulated instrument), takeoffs and landings (split by day/night), and any required endorsements completed.</p>
+        <h3>Discrepancies / Squawks</h3><p>Anything abnormal — rough mag, fuel smell, electrical glitch, control feel, prop nick — document it in the squawk/maintenance log immediately. The next pilot deserves to know, and the discrepancy must be addressed before further flight if it affects airworthiness.</p>
+        <h3>Refueling</h3><p>Top off after the flight if practical — prevents condensation overnight, leaves the next pilot a known starting state. Note the Hobbs/tach when fueled and the fuel grade.</p>`,
+      },
+      {
+        id: 'human-factors', name: 'Human factors',
+        studyBody: `<h3>IMSAFE Personal Minimums</h3><ul><li><strong>I</strong>llness</li><li><strong>M</strong>edication</li><li><strong>S</strong>tress</li><li><strong>A</strong>lcohol — 8 hours bottle to throttle, .04% BAC max</li><li><strong>F</strong>atigue</li><li><strong>E</strong>ating</li></ul>
+        <h3>The Five Hazardous Attitudes</h3><ul><li><strong>Anti-authority</strong> — "Don't tell me." → Follow the rules.</li><li><strong>Impulsivity</strong> — "Do something quickly." → Not so fast, think first.</li><li><strong>Invulnerability</strong> — "It won't happen to me." → It could happen to me.</li><li><strong>Macho</strong> — "I can do it." → Taking chances is foolish.</li><li><strong>Resignation</strong> — "What's the use?" → I'm not helpless.</li></ul>
+        <h3>ADM — DECIDE & PAVE</h3><p>DECIDE: Detect, Estimate, Choose, Identify, Do, Evaluate. PAVE: Pilot, Aircraft, enVironment, External pressures.</p>
+        <h3>Hypoxia vs. Hyperventilation</h3><p>Symptoms overlap (lightheadedness, tingling, vision issues). Hypoxia = less oxygen at altitude → descend or use supplemental O2. Hyperventilation = blowing off CO2 → slow your breathing, breathe into a bag.</p>
+        <h3>Inner-ear Illusions</h3><ul><li><strong>Somatogravic illusion:</strong> rapid acceleration on takeoff feels like pitching up.</li><li><strong>Coriolis:</strong> moving your head during a sustained turn produces tumbling sensations.</li><li><strong>Graveyard spiral:</strong> after a long banked turn, leveling feels like the opposite turn.</li></ul>
+        <h3>Visual Illusions on Landing</h3><ul><li>Narrow runway → feel too high → flare late</li><li>Wide runway → feel too low → flare high</li><li>Upsloping runway → appear higher than you are</li><li>Downsloping runway → appear lower</li></ul>`,
+      },
+      {
+        id: 'aircraft-systems', name: 'Aircraft systems',
+        studyBody: `<h3>Powerplant</h3><p>Most trainers run a four-stroke, horizontally-opposed, air-cooled, normally aspirated piston engine. The four strokes: <strong>Intake, Compression, Power, Exhaust</strong>.</p>
+        <h3>Mixture & Carburetor Ice</h3><p>Mixture controls fuel/air ratio. Lean for altitude (less air = need less fuel). Carb ice can form even on warm days when humidity is high. Symptom: RPM drop in fixed-pitch, manifold pressure drop in constant-speed. Apply <strong>full carb heat</strong> at the first sign.</p>
+        <h3>Magnetos</h3><p>Two independent ignition systems, driven by the engine itself — that's why an engine keeps running with the master off. During runup, max RPM drop ~125 and max difference ~50 between mags is typical (check POH).</p>
+        <h3>Fuel System</h3><p>Gravity-fed (high wing) or pump-fed (low wing). Selector positions: BOTH, LEFT, RIGHT, OFF. Always sump tanks before flight to check for water and contaminants.</p>
+        <h3>Electrical</h3><p>The alternator powers the system in flight and recharges the battery. Master switch + alternator. If alternator fails, shed non-essential loads. Battery alone may last ~30 min.</p>
+        <h3>Pitot-Static</h3><p>Three instruments use it: <strong>airspeed, altimeter, VSI</strong>. Pitot blocked → airspeed inaccurate (acts like an altimeter at altitude). Static blocked → all three affected; use the alternate static source.</p>
+        <h3>Flight Controls</h3><p>Primary: ailerons, elevator (or stabilator), rudder. Secondary: flaps, trim. Understand both control feel and the trim function — runaway trim is a real emergency, recoverable by countering with yoke pressure and disengaging electric trim.</p>`,
+      },
+      {
+        id: 'perf-limits', name: 'Performance and limitations',
+        studyBody: `<h3>V-speeds and Airspeed Indicator Markings</h3><ul><li><strong>Vs0</strong> — stall speed in landing config (low end of white arc)</li><li><strong>Vs1</strong> — stall speed clean (low end of green arc)</li><li><strong>Vfe</strong> — max flap extended (top of white arc)</li><li><strong>Vno</strong> — max structural cruising (top of green arc)</li><li><strong>Vne</strong> — never exceed (red line)</li><li><strong>Va</strong> — maneuvering speed (varies with weight; not on the ASI)</li><li><strong>Vx / Vy</strong> — best angle / best rate of climb</li></ul>
+        <h3>Density Altitude</h3><p>Pressure altitude corrected for non-standard temperature. The "three Hs" — hot, high, humid — all increase DA. Performance falls off rapidly: takeoff roll lengthens, climb rate decreases, service ceiling drops.</p>
+        <h3>Weight & Balance</h3><p>Stay below max gross. CG forward of forward limit: nose-heavy, more stable, harder to flare. CG aft of aft limit: tail-heavy, less stable, dangerous stall recovery. Burn-off shifts CG over time.</p>
+        <h3>Load Factor</h3><p>Ratio of lift to weight. Increases with bank angle. 60° bank = 2 G; stall speed increases by √(load factor) — about 41% higher at 60° bank.</p>
+        <h3>Stalls</h3><p>Caused by exceeding the critical angle of attack — not airspeed alone. Recovery: reduce AoA first, then add power, then level wings, then return to coordinated flight.</p>
+        <h3>Ground Effect</h3><p>Within ~one wingspan of the surface, induced drag drops. The plane wants to float on landing. Don't rotate at high DA before achieving climb-out airspeed — you'll lift off in ground effect and sink when you climb out of it.</p>
+        <h3>POH Performance Charts</h3><p>Always interpolate between conditions. Never round in your favor. Add buffer for old engines, dirty wings, full tanks, and pilot proficiency.</p>`,
+      },
+      {
+        id: 'airport-ops', name: 'Airport operations',
+        studyBody: `<h3>Pattern Entry (non-towered)</h3><p>Standard: enter the pattern at pattern altitude (typically 1,000 AGL) on a 45° entry to the downwind. Listen on CTAF, announce position. Standard direction is left turns unless the airport says otherwise (look for the segmented circle).</p>
+        <h3>Runway Markings</h3><ul><li><strong>Threshold</strong> — usually a row of bars across the runway</li><li><strong>Centerline</strong> — dashed white line</li><li><strong>Designators</strong> — based on magnetic heading, rounded to nearest 10°</li><li><strong>Aiming point</strong> — two solid white blocks ~1,000 ft from threshold</li><li><strong>Touchdown zone</strong> — coded markings between threshold and aiming point</li><li><strong>Displaced threshold</strong> — arrows; usable length only beyond the threshold mark</li></ul>
+        <h3>Airport Signs</h3><ul><li><strong>Mandatory (red, white text)</strong> — runway boundary, ILS critical area, no-entry</li><li><strong>Location (black, yellow text/border)</strong> — current position</li><li><strong>Direction (yellow, black text)</strong> — taxiways diverging</li><li><strong>Destination (yellow, black text, arrow)</strong> — direction to a destination</li><li><strong>Information (yellow, black text)</strong> — frequencies, noise procedures</li></ul>
+        <h3>Taxiway Markings</h3><p>Yellow centerline. Hold-short lines: two solid + two dashed. The solid lines are on the side you must wait — never cross without clearance at a towered airport.</p>
+        <h3>Wake Turbulence Avoidance</h3><ul><li>Behind a heavy on takeoff: rotate before its rotation point and stay above its flight path; or wait 2 minutes</li><li>Behind a heavy on landing: stay above and land beyond its touchdown point; or wait 2 minutes</li><li>Wingtip vortices sink at ~300-500 fpm and stop sinking ~900 ft below the generating aircraft</li></ul>
+        <h3>LAHSO (Land and Hold Short Operations)</h3><p>Tower may issue a LAHSO clearance. As PIC you can refuse — never accept if available landing distance is below published minimum. <strong>Student pilots should not accept LAHSO.</strong></p>`,
+      },
+      {
+        id: 'nas', name: 'National airspace system',
+        studyBody: `<h3>The Six Classes</h3><p>U.S. airspace is divided into Class A, B, C, D, E, and G. Mnemonic: <em>"Big Cities Don't Eat Grass"</em> for B-C-D-E-G in descending restriction.</p>
+        <h3>Class A</h3><p>From 18,000 ft MSL up to FL600. <strong>IFR only.</strong> Clearance required.</p>
+        <h3>Class B</h3><p>Around the busiest airports. Shaped like an upside-down wedding cake. Requires ATC clearance, two-way radio, Mode C, ADS-B Out. Student pilots need a logbook endorsement (§61.95) for specific Class B airports.</p>
+        <h3>Class C</h3><p>Mid-tier airports with operational radar. Two-way radio + Mode C/ADS-B Out. <strong>Establish two-way comms</strong> before entering — ATC must speak your full callsign.</p>
+        <h3>Class D</h3><p>Towered airports of moderate traffic. Two-way radio comms required. Generally up to 2,500 ft AGL.</p>
+        <h3>Class E</h3><p>The "default" controlled airspace. Begins at 1,200 AGL or 700 AGL near airports with instrument approaches. Caps at 17,999 MSL.</p>
+        <h3>Class G</h3><p>Uncontrolled. Below Class E. You're on your own for separation and weather avoidance.</p>
+        <h3>Special Use Airspace</h3><ul><li><strong>Prohibited:</strong> no flight allowed (P-56 over the White House)</li><li><strong>Restricted:</strong> hazards to flight; clearance required when active</li><li><strong>Warning:</strong> like restricted, but international waters</li><li><strong>MOA:</strong> military training; VFR aircraft can transit but exercise caution</li><li><strong>Alert:</strong> high-volume training activity</li></ul>
+        <h3>VFR Weather Minimums (§91.155)</h3><p>Below 10,000 MSL Class C/D/E: <strong>3 SM, 3-152</strong> (500 below, 1,000 above, 2,000 horizontal). At/above 10,000 MSL Class E: <strong>5 SM, 5-111</strong>. Class B: 3 SM, clear of clouds. Class G day ≤1,200 AGL: 1 SM, clear of clouds.</p>`,
+      },
+      {
+        id: 'weather', name: 'Weather information',
+        studyBody: `<h3>Atmospheric Pressure</h3><p>Standard sea level: 29.92 inHg, 15°C. Pressure decreases with altitude (~1 inHg per 1,000 ft). Hot/low pressure air = high density altitude.</p>
+        <h3>Wind</h3><p>Air moves from high to low pressure. Coriolis deflects it right in the Northern Hemisphere — surface winds spiral <em>into</em> a low and <em>out</em> of a high. Friction shifts surface wind left and slows it relative to winds aloft.</p>
+        <h3>Stability</h3><p>Stable air: smooth, stratus clouds, steady precipitation, poor visibility. Unstable air: turbulence, cumulus clouds, showers, good visibility.</p>
+        <h3>Fronts</h3><ul><li><strong>Cold:</strong> fast-moving, narrow band, towering cumulus, wind shifts right after passage</li><li><strong>Warm:</strong> slow, widespread stratus, long periods of low ceilings</li><li><strong>Stationary:</strong> stalled boundary, similar to warm</li><li><strong>Occluded:</strong> cold catches up to warm, mixed weather</li></ul>
+        <h3>Reports & Forecasts</h3><ul><li><strong>METAR</strong> — current observation</li><li><strong>TAF</strong> — forecast (5 SM/24 nmi airport area)</li><li><strong>AIRMET</strong> — moderate hazards (MTN obscuration, IFR, icing, turbulence)</li><li><strong>SIGMET</strong> — significant: severe icing, severe turbulence, dust storms, volcanic ash</li><li><strong>Convective SIGMET</strong> — embedded TSTMs, lines of TSTMs, severe TSTMs, hail ≥¾"</li><li><strong>PIREP</strong> — pilot reports; the most current real-time data</li></ul>
+        <h3>Thunderstorms</h3><p>Three stages: cumulus (building), mature (rain reaches ground, hazardous), dissipating. <strong>Avoid by 20 NM.</strong> Embedded TSTMs in stratus are the deadliest because they're invisible until you're in them.</p>`,
+      },
+      {
+        id: 'xc-planning', name: 'Cross-country flight planning',
+        studyBody: `<h3>Sectional Charts</h3><p>Scale 1:500,000 (1 inch ≈ 6.86 NM). Updated every 56 days. Read the legend — it's the cheat sheet you'll come back to forever.</p>
+        <h3>True → Magnetic → Compass</h3><p>The mantra: <strong>True Virgins Make Dull Companions</strong> — True ± Variation = Magnetic; Magnetic ± Deviation = Compass. East is least, west is best.</p>
+        <h3>The Wind Triangle</h3><p>True course (the chart line) + wind correction angle = true heading. Add ground speed correction for time. The E6B (or your iPad) does this for you, but you must understand the math.</p>
+        <h3>Plan Components</h3><ul><li>Course, distance, altitude for each leg</li><li>Winds aloft, true airspeed, ground speed, true heading, magnetic heading</li><li>Time en route, fuel burn, total fuel + reserves</li><li>Checkpoints every ~10 NM</li><li>Alternate airports along route</li><li>Frequencies: ATIS, tower, ground, departure, FSS</li><li>NOTAMs, TFRs, weather briefing</li></ul>
+        <h3>Lost Procedures — the 5 Cs</h3><p><strong>Confess, Climb, Communicate, Comply, Conserve.</strong> Climb for radio range and visibility. Talk to FSS or any nearby tower. 121.5 if you can't reach anyone.</p>
+        <h3>VOR Basics</h3><p>VHF Omnidirectional Range. Two needles: CDI (course deviation) and TO/FROM. Identify the station Morse code before relying on it. Track radials inbound or outbound.</p>
+        <h3>VFR Cruising Altitudes (§91.159)</h3><p>Above 3,000 ft AGL, on a magnetic course 0–179° fly odd thousand + 500 (e.g., 5,500); 180–359° fly even + 500 (e.g., 6,500).</p>`,
+      },
+      {
+        id: 'night-ops', name: 'Night operations',
+        studyBody: `<h3>Required Equipment for Night Flight — FLAPS</h3><ul><li><strong>F</strong>uses or circuit breakers</li><li><strong>L</strong>anding light (only if for hire)</li><li><strong>A</strong>nti-collision lights</li><li><strong>P</strong>osition lights — red on left, green on right, white on tail</li><li><strong>S</strong>ource of electrical energy</li></ul>
+        <h3>Currency to Carry Passengers at Night</h3><p>3 takeoffs and landings to a full stop in the preceding 90 days, between 1 hour after sunset and 1 hour before sunrise, in the same category and class.</p>
+        <h3>Aeromedical — Eyes at Night</h3><ul><li>Cones (color, detail) work in daylight; rods (peripheral, low-light) take ~30 minutes to fully dark-adapt</li><li>Avoid bright white lights before flight; red or dim cockpit lighting preserves night vision</li><li>Use off-center viewing — don't stare directly at faint objects; look ~10° to the side</li><li>Hypoxia hits earlier at night — supplemental O2 above 5,000 ft is recommended</li></ul>
+        <h3>Visual Illusions at Night</h3><ul><li><strong>Black-hole approach</strong> — featureless terrain on approach makes you feel high; you fly low and risk hitting terrain</li><li><strong>False horizon</strong> — sloped cloud tops, ground lights, shorelines can be mistaken for the horizon</li><li><strong>Autokinesis</strong> — a fixed light stared at for several seconds appears to move</li><li><strong>Featureless terrain</strong> — over water, desert, or unlit areas, lateral cues disappear; trust instruments</li></ul>
+        <h3>Recommended Techniques</h3><ul><li>Plan more conservative routes — higher altitudes, near roads/towns, away from terrain</li><li>Use VASI/PAPI on approach when available — geometry doesn't lie</li><li>Maintain instrument scan even when VFR — visual cues are less reliable</li><li>Pre-check all aircraft and personal lights before sunset</li></ul>`,
+      },
+    ];
+
+    function renderResourceGrid() {
+      const grid = document.getElementById('resource-grid');
+      if (!grid) return;
+      const columns = [
+        { type: 'study',      label: 'Study Guides', icon: 'book-open',     accent: true  },
+        { type: 'flashcards', label: 'Flash Cards',  icon: 'layers',        accent: false },
+        { type: 'quizzes',    label: 'Quizzes',      icon: 'check-square',  accent: false },
+      ];
+      grid.innerHTML = columns.map(col => `
+        <div class="bg-zinc-950 border border-zinc-900 rounded-2xl p-5">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-900">
+            <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <i data-lucide="${col.icon}" class="w-4 h-4 text-blue-400"></i>
+            </div>
+            <h3 class="font-bold text-slate-100">${col.label}</h3>
+          </div>
+          <div class="space-y-0.5">
+            ${resourceTopics.map(t => {
+              const viewed = col.type === 'study' && state.progress.topicsViewed.has(t.id);
+              return `<button onclick="openResource('${col.type}','${t.id}')" class="flex items-center justify-between w-full text-left px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-zinc-900 hover:text-slate-100 transition">
+                <span>${t.name}</span>
+                ${viewed ? '<i data-lucide="check" class="w-3.5 h-3.5 text-blue-400 flex-shrink-0 ml-2"></i>' : ''}
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function openResource(type, id) {
+      const t = resourceTopics.find(x => x.id === id);
+      if (!t) return;
+      const kindEl = document.getElementById('resource-detail-kind');
+      const titleEl = document.getElementById('resource-detail-title');
+      const bodyEl = document.getElementById('resource-detail-body');
+
+      titleEl.textContent = t.name;
+      document.getElementById('resource-detail').classList.remove('hidden');
+
+      // Pre-written study guides win over generation when available.
+      if (type === 'study' && t.studyBody) {
+        kindEl.textContent = 'Study Guide';
+        bodyEl.innerHTML = t.studyBody;
+        state.progress.topicsViewed.add(t.id);
+        renderResourceGrid();
+        lucide.createIcons();
+        return;
+      }
+
+      // Map UI type → API kind.
+      const apiKind = type === 'flashcards' ? 'flashcards'
+                    : type === 'quizzes'    ? 'quiz'
+                    : 'study';
+      const labelMap = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      kindEl.textContent = labelMap[apiKind];
+
+      // Study guides generate immediately; quiz + flashcards ask for length first.
+      if (apiKind === 'study') {
+        bodyEl.innerHTML = generatingStub(labelMap.study, t.name);
+        lucide.createIcons();
+        runGeneration(apiKind, t, bodyEl, type);
+      } else {
+        bodyEl.innerHTML = renderLengthPicker(apiKind, t.name, t.id);
+        lucide.createIcons();
+      }
+    }
+
+    // Called by the buttons inside renderLengthPicker.
+    function startGeneration(apiKind, topicId, count) {
+      const t = resourceTopics.find(x => x.id === topicId);
+      if (!t) return;
+      const labelMap = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      const bodyEl = document.getElementById('resource-detail-body');
+      bodyEl.innerHTML = generatingStub(`${count} ${labelMap[apiKind]}`, t.name);
+      lucide.createIcons();
+      runGeneration(apiKind, t, bodyEl, apiKind === 'flashcards' ? 'flashcards' : 'quizzes', count);
+    }
+
+    function runGeneration(apiKind, t, bodyEl, uiType, count) {
+      generateResource(apiKind, t.name, count)
+        .then(data => {
+          if (apiKind === 'study') {
+            bodyEl.innerHTML = renderStudyGuide(data.content, data.citations);
+            if (uiType === 'study') {
+              state.progress.topicsViewed.add(t.id);
+              renderResourceGrid();
+            }
+          } else if (apiKind === 'flashcards') {
+            bodyEl.innerHTML = renderFlashcards(data.items, data.citations);
+          } else if (apiKind === 'quiz') {
+            bodyEl.innerHTML = renderQuiz(data.items, data.citations);
+          }
+          lucide.createIcons();
+        })
+        .catch(err => {
+          bodyEl.innerHTML = errorStub(err.message);
+          lucide.createIcons();
+        });
+    }
+
+    async function generateResource(kind, topic, count) {
+      const body = { kind, topic };
+      if (typeof count === 'number') body.count = count;
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      return data;
+    }
+
+    function renderLengthPicker(apiKind, topic, topicId) {
+      const isQuiz = apiKind === 'quiz';
+      const label = isQuiz ? 'questions' : 'cards';
+      const presets = isQuiz ? [5, 10, 15, 25, 50] : [5, 8, 12, 20, 40];
+      const icon = isQuiz ? 'check-square' : 'layers';
+      const heading = isQuiz ? 'How many questions?' : 'How many cards?';
+      const safeId = String(topicId).replace(/'/g, "\\'");
+      const safeTopic = escapeHtml(topic);
+
+      const buttons = presets.map(n => `
+        <button onclick="startGeneration('${apiKind}', '${safeId}', ${n})" class="px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:bg-zinc-800 text-slate-200 font-semibold transition">
+          ${n}
+        </button>
+      `).join('');
+
+      return `
+        <div class="max-w-md mx-auto py-6">
+          <div class="text-center mb-6">
+            <div class="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 mx-auto">
+              <i data-lucide="${icon}" class="w-7 h-7 text-blue-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-1">${safeTopic}</h3>
+            <p class="text-sm text-slate-400">${heading}</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            ${buttons}
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <input type="number" id="custom-count" min="1" max="50" placeholder="Custom (1-50)" class="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-slate-200 placeholder:text-slate-500 text-sm focus:outline-none focus:border-blue-500/60" />
+            <button onclick="(function(){const n=parseInt(document.getElementById('custom-count').value,10); if(n>=1&&n<=50) startGeneration('${apiKind}','${safeId}',n);})()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">Go</button>
+          </div>
+          <div class="text-center text-[11px] text-slate-500 mt-3">Larger sets take longer to generate (~10-25 seconds for 25+ ${label}).</div>
+        </div>
+      `;
+    }
+
+    function generatingStub(kindLabel, topic) {
+      return `<div class="text-center py-12">
+        <div class="inline-flex flex-col items-center max-w-md">
+          <div class="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
+            <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+          </div>
+          <div class="text-lg font-semibold text-slate-200 mb-2">Generating ${escapeHtml(kindLabel)}</div>
+          <div class="text-sm text-slate-400 leading-relaxed">Pulling FAA references for <strong class="text-slate-200">${escapeHtml(topic)}</strong>… this usually takes 5-10 seconds.</div>
+        </div>
+      </div>`;
+    }
+
+    function errorStub(msg) {
+      return `<div class="text-center py-10">
+        <div class="inline-flex flex-col items-center max-w-md">
+          <div class="w-14 h-14 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-4">
+            <i data-lucide="alert-triangle" class="w-7 h-7 text-rose-400"></i>
+          </div>
+          <div class="text-lg font-semibold text-slate-200 mb-2">Couldn't generate this</div>
+          <div class="text-sm text-rose-300 leading-relaxed">${escapeHtml(msg)}</div>
+        </div>
+      </div>`;
+    }
+
+    // Render a Markdown-ish study guide. We're not pulling a full Markdown
+    // library — just hit the common cases (headings, bold, italic, lists,
+    // line breaks). escapeHtml first to keep model output safe.
+    function renderStudyGuide(markdown, citations) {
+      let html = escapeHtml(markdown || '')
+        .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold text-slate-100 mt-5 mb-2">$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-slate-100 mt-6 mb-3">$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-slate-100 mt-6 mb-4">$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-100">$1</strong>')
+        .replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/`([^`\n]+?)`/g, '<code class="bg-zinc-800 px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-slate-300">$1</li>')
+        .replace(/(<li[^>]*>.+<\/li>(?:\s*\n)?)+/g, m => `<ul class="my-2 space-y-1">${m}</ul>`)
+        .replace(/\n\n/g, '</p><p class="text-slate-300 my-2">')
+        .replace(/\n/g, '<br>');
+      html = `<div class="prose-dark"><p class="text-slate-300 my-2">${html}</p></div>`;
+      return html + citationFooter(citations);
+    }
+
+    function renderFlashcards(cards, citations) {
+      if (!Array.isArray(cards) || cards.length === 0) {
+        return errorStub('No flash cards were generated.');
+      }
+      const list = cards.map((c, i) => `
+        <details class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-blue-500/40 transition">
+          <summary class="cursor-pointer px-4 py-3 font-semibold text-slate-200 flex items-start gap-3">
+            <span class="text-blue-400 text-xs font-mono mt-0.5">Q${i + 1}</span>
+            <span class="flex-1">${escapeHtml(c.q || '')}</span>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-500 flex-shrink-0 mt-1"></i>
+          </summary>
+          <div class="px-4 pb-4 pt-1 text-slate-300 text-sm leading-relaxed border-t border-zinc-800/60">
+            ${escapeHtml(c.a || '').replace(/\n/g, '<br>')}
+          </div>
+        </details>
+      `).join('');
+      return `<div class="space-y-3">${list}</div>` + citationFooter(citations);
+    }
+
+    // Quizzes use real radio inputs so selection works without any custom click
+    // handlers (which the resource modal's stopPropagation was eating).
+    // The user picks all answers, hits Submit, and sees the score + per-question
+    // feedback all at once.
+    function renderQuiz(questions, citations) {
+      if (!Array.isArray(questions) || questions.length === 0) {
+        return errorStub('No quiz questions were generated.');
+      }
+      const blocks = questions.map((q, qi) => {
+        const choices = (q.choices || []).map((c, ci) => `
+          <label class="quiz-choice flex items-start gap-3 px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 hover:border-blue-500/60 text-sm text-slate-300 hover:text-slate-100 transition cursor-pointer">
+            <input type="radio" name="quiz-q-${qi}" value="${ci}" class="quiz-radio mt-1 accent-blue-500 cursor-pointer" />
+            <span class="flex-1"><span class="text-blue-400 font-mono mr-2">${String.fromCharCode(65 + ci)}.</span>${escapeHtml(c)}</span>
+          </label>
+        `).join('');
+        return `
+          <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4" data-quiz-q="${qi}" data-correct="${q.correct}" data-explanation="${escapeHtml(q.explanation || '').replace(/"/g, '&quot;')}">
+            <div class="font-semibold text-slate-200 mb-3">${qi + 1}. ${escapeHtml(q.q || '')}</div>
+            <div class="space-y-2">${choices}</div>
+            <div class="quiz-feedback hidden mt-3 p-3 rounded-md text-sm"></div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div id="quiz-container" class="space-y-4">
+          <div id="quiz-questions" class="space-y-4">${blocks}</div>
+          <div id="quiz-result" class="hidden"></div>
+          <button id="quiz-submit-btn" type="button" onclick="submitQuiz()" class="w-full mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/20 transition">
+            Submit Quiz
+          </button>
+        </div>
+        ${citationFooter(citations)}
+      `;
+    }
+
+    function submitQuiz() {
+      const container = document.getElementById('quiz-container');
+      if (!container) return;
+      const blocks = container.querySelectorAll('[data-quiz-q]');
+      const total = blocks.length;
+      let correct = 0;
+      let answered = 0;
+
+      blocks.forEach(qBlock => {
+        const correctIdx = parseInt(qBlock.dataset.correct, 10);
+        const explanation = qBlock.dataset.explanation || '';
+        const sel = qBlock.querySelector('input.quiz-radio:checked');
+        const chosenIdx = sel ? parseInt(sel.value, 10) : -1;
+        const isRight = chosenIdx === correctIdx;
+        if (chosenIdx !== -1) answered++;
+        if (isRight) correct++;
+
+        // Lock all choices, color them based on correctness.
+        qBlock.querySelectorAll('.quiz-choice').forEach((label, idx) => {
+          const input = label.querySelector('input.quiz-radio');
+          if (input) input.disabled = true;
+          label.classList.remove('hover:border-blue-500/60', 'hover:text-slate-100', 'cursor-pointer');
+          label.classList.add('cursor-default');
+          if (idx === correctIdx) {
+            label.classList.add('!bg-emerald-500/10', '!border-emerald-500/50', 'text-emerald-200');
+          } else if (idx === chosenIdx) {
+            label.classList.add('!bg-rose-500/10', '!border-rose-500/50', 'text-rose-200');
+          } else {
+            label.classList.add('opacity-50');
+          }
+        });
+
+        const fb = qBlock.querySelector('.quiz-feedback');
+        fb.classList.remove('hidden');
+        const correctLetter = String.fromCharCode(65 + correctIdx);
+        if (isRight) {
+          fb.classList.add('bg-emerald-500/10', 'border', 'border-emerald-500/30', 'text-emerald-200');
+          fb.innerHTML = `<strong>✓ Correct.</strong> ${explanation}`;
+        } else if (chosenIdx === -1) {
+          fb.classList.add('bg-zinc-800/60', 'border', 'border-zinc-700', 'text-slate-300');
+          fb.innerHTML = `<strong>Skipped.</strong> The answer is <strong>${correctLetter}</strong>. ${explanation}`;
+        } else {
+          fb.classList.add('bg-rose-500/10', 'border', 'border-rose-500/30', 'text-rose-200');
+          fb.innerHTML = `<strong>✗ Not quite.</strong> The answer is <strong>${correctLetter}</strong>. ${explanation}`;
+        }
+      });
+
+      const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const grade = pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F';
+      const passing = pct >= 70;
+      const colors = passing
+        ? { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', accent: 'text-emerald-200', sub: 'text-emerald-300' }
+        : { bg: 'bg-rose-500/10', border: 'border-rose-500/30', accent: 'text-rose-200', sub: 'text-rose-300' };
+      const skipped = total - answered;
+      const result = document.getElementById('quiz-result');
+      result.className = `${colors.bg} border ${colors.border} rounded-lg p-5 text-center`;
+      result.innerHTML = `
+        <div class="text-4xl font-bold ${colors.accent}">${correct} / ${total}</div>
+        <div class="text-sm ${colors.sub} mt-1">${pct}% — Grade: <strong>${grade}</strong>${skipped ? ` &nbsp;·&nbsp; ${skipped} skipped` : ''}</div>
+      `;
+
+      const submitBtn = document.getElementById('quiz-submit-btn');
+      if (submitBtn) submitBtn.classList.add('hidden');
+      result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function citationFooter(citations) {
+      if (!citations || citations.length === 0) return '';
+      const items = citations.map(c => `<span class="inline-block bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1 text-[11px] text-slate-400">${escapeHtml(c)}</span>`).join(' ');
+      return `<div class="mt-6 pt-4 border-t border-zinc-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">FAA Sources</div>
+        <div class="flex flex-wrap gap-1.5">${items}</div>
+      </div>`;
+    }
+
+    function comingSoonStub(featureName, topicName, iconName) {
+      return `<div class="text-center py-12">
+        <div class="inline-flex flex-col items-center max-w-md">
+          <div class="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
+            <i data-lucide="${iconName}" class="w-7 h-7 text-blue-400"></i>
+          </div>
+          <div class="text-lg font-semibold text-slate-200 mb-2">Coming soon</div>
+          <div class="text-sm text-slate-400 leading-relaxed">${escapeHtml(featureName)} for <strong class="text-slate-200">${escapeHtml(topicName)}</strong> will be available once the AI agent is wired up. The UI is ready — content is being prepared.</div>
+        </div>
+      </div>`;
+    }
+
+    function closeResource(e) {
+      if (e && e.target.id !== 'resource-detail') return;
+      document.getElementById('resource-detail').classList.add('hidden');
+    }
+
+    // ============================================================
+    //                 DPE ORAL — CONVERSATIONAL
+    // ============================================================
+    // Each question: a real DPE-style scenario. `keys` = concepts the student
+    // should mention. `minHits` = how many concepts must appear to count as correct.
+    // `followups` = drill-down probes; difficulty determines how many are asked.
+    const dpeBank = [
+      {
+        topic: 'Airspace',
+        q: "Let's start with airspace. You're planning a flight from a non-towered Class G airport to a Class C airport about 40 miles away. Walk me through what's required to enter that Class C.",
+        keys: ['two-way','two way','radio','communic','establish','mode c','transponder','ads-b','ads b','callsign'],
+        minHits: 2,
+        ideal: "You need to establish two-way radio communications with ATC, and have an operable Mode C transponder plus ADS-B Out. ATC establishes comms by responding using your full callsign — if they say \"aircraft calling, standby\" you are NOT cleared to enter.",
+        followups: [
+          { q: "Good. Now — what specifically does \"establish two-way comms\" mean? If ATC says only \"aircraft calling, standby\", may you enter?", keys: ['no','not','cannot','callsign','full callsign'], ideal: "No. ATC must respond using your callsign before comms are considered established. \"Standby\" alone is not a clearance to enter." },
+          { q: "Describe the dimensions of a typical Class C — inner ring and shelf.", keys: ['4,000','4000','surface','5 nm','5nm','10 nm','10nm','1,200','1200'], ideal: "Inner ring: surface to 4,000 ft AGL, 5 NM radius. Outer shelf: 1,200 to 4,000 ft AGL, 10 NM radius. Plus a 20-NM 'outer area' procedural ring." },
+        ],
+      },
+      {
+        topic: 'Weather',
+        q: "You pull up the METAR for your destination an hour before takeoff: KXYZ 121856Z 12015G25KT 3SM BR BKN008 OVC020 22/21 A2992. Tell me what you see and whether you'd launch as a freshly-minted PPL.",
+        keys: ['3sm','3 sm','visibility','bkn','overcast','ovc','008','dew point','21','22','spread','fog','mist','br','gust','25'],
+        minHits: 3,
+        ideal: "Visibility 3 SM in mist (BR), broken at 800 ft, overcast at 2,000 ft. Temp 22 / dew point 21 — only a 1-degree spread, classic fog setup. Wind 120 at 15, gusting 25. With a low ceiling and fog risk and gusts at the limit of personal mins, a brand-new PPL should not launch — at minimum, wait for it to lift.",
+        followups: [
+          { q: "What does that 1-degree temp/dew-point spread tell you about the next hour?", keys: ['fog','low','ceiling','satur','condens','mist'], ideal: "Air is at or near saturation; visibility is likely to drop further as temp falls or moisture increases. Expect IFR conditions soon." },
+          { q: "If you were already airborne and inadvertently entered IMC, what's your immediate plan?", keys: ['180','turn','instruments','level','climb','confess','atc'], ideal: "Trust instruments, level the wings, execute a 180° turn back to known VFR conditions, and confess to ATC immediately. Climb if terrain is a factor." },
+        ],
+      },
+      {
+        topic: 'Aerodynamics',
+        q: "At what airspeed does an airplane stall?",
+        keys: ['any','angle of attack','aoa','critical','exceed'],
+        minHits: 2,
+        ideal: "An airplane can stall at ANY airspeed, in any attitude, at any power setting. Stall is caused by exceeding the critical angle of attack — not by airspeed alone.",
+        followups: [
+          { q: "Give me an example of stalling well above published Vs1.", keys: ['accelerated','steep','turn','60','load factor','bank','g'], ideal: "An accelerated stall in a steep turn — at 60° bank, load factor is 2 G and stall speed increases ~41%. You can stall at 1.5x the wings-level stall speed without realizing it." },
+          { q: "Walk me through stall recovery, in order.", keys: ['reduce aoa','reduce angle','forward','pitch','power','wings','level','coordinated'], ideal: "First reduce angle of attack (relax/forward yoke), simultaneously add full power, then level the wings, then return to coordinated flight. Pitch first — power second." },
+        ],
+      },
+      {
+        topic: 'Regulations',
+        q: "What does it take to remain current to carry passengers as a private pilot?",
+        keys: ['3','three','takeoff','landing','90','ninety','passenger','night','full stop','sunset','sunrise'],
+        minHits: 2,
+        ideal: "Three takeoffs and three landings within the preceding 90 days in the same category, class, and type if a type rating is required. To carry passengers at night (1 hour after sunset to 1 hour before sunrise), those three landings must be to a full stop.",
+        followups: [
+          { q: "What about a flight review — when's the next one due?", keys: ['24','months','calendar','flight review','61.56'], ideal: "§61.56: every 24 calendar months, with at least 1 hour ground and 1 hour flight with an authorized instructor." },
+          { q: "Your buddy says \"the day-currency landings can be touch-and-go's.\" Is that right? And night?", keys: ['day','touch','full stop','night'], ideal: "Day: yes, takeoffs/landings can include touch-and-go's. Night: must be to a full stop. Tailwheel landings (day or night) must also be to a full stop." },
+        ],
+      },
+      {
+        topic: 'Emergencies',
+        q: "You're at 4,500 ft AGL, cruising along, and the engine quits. Tell me what you do — narrate the flow.",
+        keys: ['best glide','pitch','glide','field','restart','fuel','mixture','carb heat','mags','squawk','7700','mayday','121.5','secure'],
+        minHits: 4,
+        ideal: "Aviate first — pitch for best glide (~65 KIAS in a 172). Pick a field into the wind with a clear approach. Run the restart flow: fuel selector both, mixture rich, carb heat on, mags both, primer in & locked, master on. Declare — squawk 7700, MAYDAY on 121.5 (or current). Once landing is assured, secure: fuel off, mixture cut-off, mags off, master off, doors cracked.",
+        followups: [
+          { q: "Why pitch for best glide before anything else? Why not work the restart first?", keys: ['altitude','time','energy','aviate','first','glide','distance'], ideal: "Best glide buys you time and distance — your most precious resources. Restart attempts are useless if you've descended into terrain. Aviate, navigate, communicate." },
+          { q: "What's a common mistake students make in choosing a field?", keys: ['stretch','glide','downwind','wind','low','far','overshoot'], ideal: "Trying to stretch the glide to a 'better' field — induced drag rockets up and the airplane sinks faster. Pick a field within easy glide range. Many students also pick fields downwind, which hurts touchdown speed." },
+          { q: "After landing, you walk away unhurt. Are you required to report it to the FAA?", keys: ['ntsb','report','immediately','damage','injury','accident','incident'], ideal: "If it meets NTSB Part 830 thresholds for an 'accident' (substantial damage, serious injury) — yes, immediate notification to NTSB. Even non-reportable forced landings should be discussed with your CFI and you should expect FAA follow-up." },
+        ],
+      },
+      {
+        topic: 'Navigation',
+        q: "Sectional shows your true course as 095°. Variation in the area is 4°W. Your compass deviation card for 090° says +2. What's your compass heading, ignoring wind?",
+        keys: ['099','97','97°','99','099°','add','west','best','true virgins','tvmdc'],
+        minHits: 1,
+        ideal: "True 095° + 4°W variation = magnetic 099°. Magnetic 099° + deviation +2 = compass 101°. Memory: True Virgins Make Dull Companions; East is least, west is best.",
+        followups: [
+          { q: "Why do we even have variation in the first place?", keys: ['true','magnetic','north','pole','difference','geographic','magnetic north'], ideal: "True north is the geographic pole; magnetic north is where the compass points. They're not in the same place, and they wander. Sectional charts show isogonic lines connecting equal variation values." },
+          { q: "If you're lost, what's your immediate sequence?", keys: ['confess','climb','communicate','comply','conserve','5 c'], ideal: "The 5 Cs: Confess to yourself, Climb for visibility and radio range, Communicate (FSS, nearest tower, or 121.5), Comply with instructions, Conserve fuel." },
+        ],
+      },
+      {
+        topic: 'Systems',
+        q: "On your runup, the right magneto check produces a 200 RPM drop. Left mag is normal. POH limit is 175. What now?",
+        keys: ['no go','do not','don\'t','ground','mechanic','fouled','plug','lean','clear','troubleshoot','no-go'],
+        minHits: 1,
+        ideal: "Don't fly. Common cause is fouled spark plugs — try leaning aggressively at higher RPM for 30-60 seconds and re-checking. If the drop persists or worsens, it's a no-go and you taxi back for maintenance.",
+        followups: [
+          { q: "Why try a lean-out before giving up?", keys: ['fouled','plug','carbon','burn','clean'], ideal: "Idle-rich operation can deposit carbon on plugs (especially with leaded avgas). Aggressive leaning raises EGT and burns deposits off. It's a legitimate troubleshooting step before declaring a no-go." },
+          { q: "If you took off anyway and the right mag failed in flight, what would you notice?", keys: ['rough','rpm','vibration','egt','chts','rough running','partial power'], ideal: "Engine roughness, slight RPM/EGT changes, possibly a noticeable power loss but the engine would still run on the remaining mag. That's the whole point of dual ignition redundancy." },
+        ],
+      },
+      {
+        topic: 'Human Factors',
+        q: "Tell me about the IMSAFE checklist and how you actually use it on the morning of a flight.",
+        keys: ['illness','medication','stress','alcohol','fatigue','eating','imsafe','8 hour','bottle','throttle','.04'],
+        minHits: 4,
+        ideal: "I — Illness, M — Medication, S — Stress, A — Alcohol (8 hours bottle to throttle, < .04% BAC, never under the influence), F — Fatigue, E — Eating. It's a personal honesty check — you do it at home before you ever drive to the airport.",
+        followups: [
+          { q: "Which of the five hazardous attitudes do you think is your weakest, and what's the antidote?", keys: ['anti-authority','impulsivity','invulnerability','macho','resignation','antidote','rules','think','can happen','foolish','helpless'], ideal: "Honest self-knowledge matters more than the 'right' answer. Antidotes: Anti-authority → follow the rules; Impulsivity → not so fast, think first; Invulnerability → it could happen to me; Macho → taking chances is foolish; Resignation → I'm not helpless." },
+          { q: "How do you separate hypoxia from hyperventilation in flight?", keys: ['oxygen','breathe','altitude','slow','co2','bag','descend','symptom','overlap'], ideal: "Symptoms overlap (lightheadedness, tingling, vision changes). Hypoxia = altitude/oxygen problem — descend or use supplemental O2. Hyperventilation = blowing off CO2 — slow your breathing, breathe into a bag. When in doubt, descend AND slow your breathing." },
+        ],
+      },
+      {
+        topic: 'Airspace',
+        q: "Picture a Class B airport — say, KSEA. You want to do a flight that goes underneath the floor of the Class B but stay clear of it. What rules apply, and what equipment must you have?",
+        keys: ['mode c','transponder','ads-b','ads b','30','veil','clear','below','floor','shelf'],
+        minHits: 2,
+        ideal: "You can fly under the Class B without an ATC clearance, but the Mode C veil extends 30 NM around the primary airport — so Mode C and ADS-B Out are required from surface to 10,000 MSL within that veil. Stay below the floor, and you don't need a Class B clearance.",
+        followups: [
+          { q: "What about VFR weather minimums while under the shelf?", keys: ['3 sm','3sm','152','500','1,000','1000','2,000','2000','below','above','horizontal','clear of clouds'], ideal: "Class E rules apply if you're outside the Class B walls: 3 SM visibility and 3-152 cloud clearance. Note: under a Class B shelf, you may also be in a Class E surface area or a Class B cutout — check the chart carefully." },
+        ],
+      },
+      {
+        topic: 'Weather',
+        q: "What's the difference between an AIRMET and a SIGMET, and which one would be a no-go for a VFR private pilot?",
+        keys: ['airmet','sigmet','moderate','severe','convective','icing','turbulence','imc','mountain','obscur','ifr','volcanic','hail','dust'],
+        minHits: 3,
+        ideal: "AIRMETs cover moderate hazards: AIRMET Sierra (mountain obscuration, IFR), Tango (turbulence), Zulu (icing, freezing levels). SIGMETs cover severe phenomena: severe turbulence, severe icing, dust storms, volcanic ash. Convective SIGMETs cover embedded TSTMs, lines of TSTMs, severe TSTMs, hail ≥¾\". A SIGMET — and especially convective SIGMET — is essentially a no-go for a VFR PPL.",
+        followups: [
+          { q: "How would you know if there's a convective SIGMET on your route?", keys: ['briefing','flight service','1800wxbrief','prog chart','flightaware','foreflight','aviationweather','radar'], ideal: "Standard preflight briefing through 1800wxbrief.com or an EFB — they integrate live SIGMETs, AIRMETs, radar mosaics, and prog charts. Always re-check just before departure for fresh issuances." },
+        ],
+      },
+      {
+        topic: 'Aerodynamics',
+        q: "Explain ground effect — what's happening, and where does it bite you?",
+        keys: ['wingspan','induced drag','reduce','near','surface','ground','float','lift','low','climb'],
+        minHits: 2,
+        ideal: "Within roughly one wingspan of the surface, the wingtip vortices are partially blocked, downwash is reduced, and induced drag drops noticeably. The airplane wants to float on landing, and on a high-DA takeoff you might lift off in ground effect but be unable to climb out — a classic accident scenario.",
+        followups: [
+          { q: "How do you avoid the high-DA ground-effect trap?", keys: ['rotate','vx','vy','climb','accelerate','poh','distance','best','speed'], ideal: "Don't rotate before achieving the speed required for sustained climb. Use Vy (or Vx if obstacle clearance) per the POH. Plan the ground roll honestly: density altitude, runway slope, surface, and weight all stack." },
+          { q: "If you accidentally rotate too early at high DA, what's happening to lift, drag, and climb performance?", keys: ['lift','drag','induced','climb','low','behind','power curve'], ideal: "You're behind the power curve. Lift exists in ground effect but disappears when you climb out. Induced drag spikes, you lose airspeed, and climb performance falls off — sometimes to zero or negative." },
+        ],
+      },
+      {
+        topic: 'Regulations',
+        q: "Walk me through the documents and inspections required for a legally airworthy aircraft. Use the memory aid if you've got one.",
+        keys: ['arrow','airworthiness','registration','radio','operating','limitation','poh','weight','balance','annual','100','100-hour','altimeter','pitot static','transponder','vor','eld','aviise','aviates'],
+        minHits: 3,
+        ideal: "ARROW for documents: Airworthiness certificate, Registration, Radio station license (international only), Operating limitations (POH/AFM, placards), Weight & balance. Inspections — a common memory aid is AAV1ATE or AVIATE: Annual, ADs, VOR (30 days for IFR), 100-hour (if for hire/instruction), Altimeter & pitot-static (24 mo for IFR), Transponder (24 mo), ELT (12 mo, half battery life).",
+        followups: [
+          { q: "Your aircraft is past its 100-hour but not annual — can you fly it solo for personal use?", keys: ['yes','100-hour','annual','rental','instruction','hire'], ideal: "Yes, if it's not used for hire or flight instruction. The 100-hour requirement only applies to aircraft used for hire (rental for instruction or carrying passengers). The annual is what applies to all aircraft." },
+          { q: "What's the difference between an AD and an SB?", keys: ['mandatory','manufacturer','airworthiness directive','service bulletin','required','optional','faa'], ideal: "An Airworthiness Directive is FAA-issued and mandatory — you must comply by the deadline or the aircraft is unairworthy. A Service Bulletin is from the manufacturer and is generally optional unless the FAA promotes it to an AD." },
+        ],
+      },
+      {
+        topic: 'Emergencies',
+        q: "You're approaching to land and the tower clears you to land but your radio dies. You can't transmit and you can't hear them. Walk me through what you do.",
+        keys: ['squawk','7600','light gun','green','red','flashing','steady','land','pattern','altitude','rock'],
+        minHits: 3,
+        ideal: "Squawk 7600. Try alternate radio, headset, push-to-talk. Continue toward the airport and look for light gun signals from the tower: steady green = cleared to land; flashing green = return to land (i.e., circle); steady red = give way and continue circling; flashing red = airport unsafe, do not land. Acknowledge by rocking wings during the day or flashing landing light at night.",
+        followups: [
+          { q: "What's the difference between flashing white and flashing red on the ground?", keys: ['flashing white','return','starting point','flashing red','taxiway'], ideal: "Flashing white (ground): return to starting point on airport. Flashing red (ground): taxi clear of runway in use. Steady red (ground): stop." },
+          { q: "If you were 30 minutes from the airport when it happened — VFR conditions — would you continue or divert?", keys: ['continue','vfr','divert','land','7600','stay vfr','non-towered'], ideal: "If VFR can be maintained, continue (FAR 91.185 specifically governs IFR; for VFR the rule is to land as soon as practicable). Many pilots opt to divert to a non-towered field for simplicity. Either is defensible — explain your reasoning." },
+        ],
+      },
+      {
+        topic: 'Human Factors',
+        q: "Define risk vs. hazard, and walk me through the PAVE checklist.",
+        keys: ['pilot','aircraft','environment','external','pressure','pave','risk','hazard','condition','consequence'],
+        minHits: 3,
+        ideal: "A hazard is a condition with the potential to cause loss; risk is the assessment of that potential turning into actual loss (probability × severity). PAVE: Pilot (IMSAFE, currency, proficiency), Aircraft (airworthiness, performance, equipment), enVironment (weather, terrain, airspace, runway), External pressures (get-there-itis, schedule, family).",
+        followups: [
+          { q: "Give me a real-world example of an external pressure and how you'd mitigate it.", keys: ['family','wedding','meeting','passenger','schedule','divert','no-go','say no','postpone'], ideal: "Classic case: passengers expecting to make a wedding/meeting. Mitigation: brief them honestly before the flight that you may divert or cancel; have a backup plan (rental car, hotel); pre-commit to a no-go threshold and stick to it." },
+          { q: "Walk me through the DECIDE model.", keys: ['detect','estimate','choose','identify','do','evaluate'], ideal: "Detect a change, Estimate the need to react, Choose a desirable outcome, Identify actions, Do the necessary action, Evaluate the effect of the action. It's a closed loop — you keep cycling." },
+        ],
+      },
+    ];
+
+    const dpeConfig = {
+      beginner: {
+        label: 'Beginner', followups: 0, passScore: 70,
+        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it friendly — I'll ask fundamental questions covering the core PPL areas. Take your time, type your answer in your own words. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
+        startReadyLine: "Ready when you are. Here's the first one:",
+        partial: "That's part of it. Want to add anything?",
+        wrongTone: "Not quite — let me give you the right answer:",
+        rightTone: "Good answer.",
+      },
+      intermediate: {
+        label: 'Intermediate', followups: 1, passScore: 70,
+        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. I'll be asking scenario questions across the core knowledge areas, and on most of them I'll come back with a follow-up to dig into your reasoning. Explain your thought process, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
+        startReadyLine: "Let's begin. First question:",
+        partial: "I want to push you a bit further — add to that.",
+        wrongTone: "Let me correct that:",
+        rightTone: "Solid. Let me probe a bit further:",
+      },
+      advanced: {
+        label: 'Advanced', followups: 3, passScore: 70,
+        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. Deep scenario questions with multiple drill-down follow-ups on each. Sloppy answers will get probed harder. Don't bluff; if you don't know, say so. The grade is based on whether your decision-making would keep an aircraft and its passengers safe.<br><br><strong>How long would you like this session to last?</strong>`,
+        startReadyLine: "Let's begin.",
+        partial: "Insufficient — give me more.",
+        wrongTone: "That's wrong. The correct answer:",
+        rightTone: "Acceptable. Going deeper:",
+      },
+    };
+
+    function shuffle(a) { const arr=[...a]; for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+    // Original keyword-based grader. Kept as the fallback when the AI grade
+    // call fails (network blip, server down, etc.) so the oral never stalls.
+    function gradeAnswer(text, q) {
+      if (!text) return { result: 'wrong', hits: 0, feedback: '', ask_followup: true };
+      const lower = ' ' + text.toLowerCase() + ' ';
+      let hits = 0;
+      const seen = new Set();
+      for (const k of q.keys) {
+        const key = k.toLowerCase();
+        if (seen.has(key)) continue;
+        if (lower.includes(key)) { hits++; seen.add(key); }
+      }
+      const min = q.minHits || 1;
+      if (hits >= min) return { result: 'correct', hits, feedback: '', ask_followup: true };
+      if (hits > 0) return { result: 'partial', hits, feedback: '', ask_followup: true };
+      return { result: 'wrong', hits, feedback: '', ask_followup: true };
+    }
+
+    // AI-powered grader. Calls /api/grade which uses Claude to read the
+    // student's answer against the curator's ideal answer and return a
+    // verdict + score + tailored feedback + follow-up recommendation.
+    // Falls back to keyword grading if the API call fails.
+    async function gradeAnswerAI(text, q, mode) {
+      if (!text) return { result: 'wrong', score: 0, feedback: '', ask_followup: true };
+      const difficulty = mode === 'beginner' ? 'beginner'
+                       : mode === 'advanced'  ? 'checkride'
+                       : 'intermediate';
+      try {
+        const res = await fetch('/api/grade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: q.q,
+            answer: text,
+            ideal: q.ideal,
+            difficulty
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Grade failed (${res.status})`);
+        const result = data.verdict === 'correct' ? 'correct'
+                     : data.verdict === 'partial' ? 'partial'
+                     : 'wrong';
+        return {
+          result,
+          score: typeof data.score === 'number' ? data.score : 0,
+          feedback: data.feedback || '',
+          ask_followup: data.ask_followup !== false
+        };
+      } catch (err) {
+        console.warn('AI grading failed, falling back to keyword grading:', err);
+        return gradeAnswer(text, q);
+      }
+    }
+
+    function startTest(mode) {
+      const cfg = dpeConfig[mode];
+
+      state.test = {
+        mode, cfg,
+        questions: shuffle(dpeBank),  // initial shuffle; reshuffled when exhausted
+        index: 0,
+        followupIdx: -1,              // -1 = main question; 0..N = follow-up index
+        results: [],                  // per-main-question grading
+        history: [],                  // chat transcript for review
+        awaitingDuration: true,       // first user input is the desired duration
+        startTime: null,              // set once duration is provided
+        cfgTime: null,                // total seconds for the session
+        timeRemaining: null,
+        finished: false,
+      };
+
+      document.getElementById('test-picker').classList.add('hidden');
+      document.getElementById('test-results').classList.add('hidden');
+      document.getElementById('test-active').classList.remove('hidden');
+      document.getElementById('test-mode-label').textContent = cfg.label + ' Oral';
+      document.getElementById('q-current').textContent = '—';
+      document.getElementById('progress-bar').style.width = '0%';
+      document.getElementById('dpe-messages').innerHTML = '';
+      document.getElementById('dpe-input').value = '';
+      document.getElementById('timer').textContent = '—:—';
+
+      // Post the intro that asks for duration. Don't start asking questions yet.
+      addMsg('dpe-messages','bot', cfg.intro);
+      setTimeout(() => addDurationChips(), 400);
+    }
+
+    // ---- Duration prompt (asked at the start of every oral) ----
+    function addDurationChips() {
+      const wrap = document.getElementById('dpe-messages');
+      const div = document.createElement('div');
+      div.id = 'duration-chips';
+      div.className = 'fade-in flex flex-wrap gap-2 ml-2';
+      div.innerHTML = `
+        <button onclick="setDuration(15)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">15 min</button>
+        <button onclick="setDuration(30)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">30 min</button>
+        <button onclick="setDuration(60)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">60 min</button>
+        <button onclick="setDuration(90)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">90 min</button>
+        <button onclick="setDuration(120)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">2 hr</button>
+      `;
+      wrap.appendChild(div);
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    function setDuration(minutes) {
+      const t = state.test;
+      if (!t || !t.awaitingDuration) return;
+      const chips = document.getElementById('duration-chips');
+      if (chips) chips.remove();
+      addMsg('dpe-messages','user', escapeHtml(minutes + ' minutes'));
+      applyDuration(minutes);
+    }
+
+    function parseDurationText(text) {
+      const lower = text.toLowerCase().trim();
+      // explicit "hour(s)" / "hr(s)" with optional decimal
+      let m = lower.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?)/);
+      if (m) return Math.round(parseFloat(m[1]) * 60);
+      // explicit minutes
+      m = lower.match(/(\d+)\s*(minutes?|mins?)/);
+      if (m) return parseInt(m[1], 10);
+      // "an hour" / "a hour"
+      if (/^an?\s*hour/.test(lower)) return 60;
+      // "half an hour" / "half hour"
+      if (/half\s*(an?\s*)?hour/.test(lower)) return 30;
+      // bare number — heuristic: <=4 → hours, otherwise minutes
+      m = lower.match(/^(\d+(?:\.\d+)?)\s*$/);
+      if (m) {
+        const n = parseFloat(m[1]);
+        return n <= 4 ? Math.round(n * 60) : Math.round(n);
+      }
+      return null;
+    }
+
+    function applyDuration(minutes) {
+      const t = state.test;
+      // clamp to a reasonable range
+      minutes = Math.max(5, Math.min(240, minutes));
+      t.awaitingDuration = false;
+      t.cfgTime = minutes * 60;
+      t.timeRemaining = t.cfgTime;
+      t.startTime = Date.now();
+
+      showTyping('dpe-messages');
+      setTimeout(() => {
+        clearTyping('dpe-messages');
+        const phrasing = minutes >= 60
+          ? `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} hour${minutes >= 120 ? 's' : ''}`
+          : `${minutes} minutes`;
+        addMsg('dpe-messages','bot', `Got it — we'll go for <strong>${phrasing}</strong>. ${t.cfg.startReadyLine}`);
+        setTimeout(() => askMain(), 700);
+      }, 600);
+
+      startTimer();
+    }
+
+    function askMain() {
+      const t = state.test;
+      // Reshuffle when we've gone through the bank
+      if (t.index >= t.questions.length) {
+        t.questions = t.questions.concat(shuffle(dpeBank));
+      }
+      const q = t.questions[t.index];
+      t.followupIdx = -1;
+      t.history.push({ role:'dpe-q', topic: q.topic, content: q.q });
+      document.getElementById('q-current').textContent = (t.index + 1);
+      addMsg('dpe-messages','system', `Question ${t.index + 1} • ${q.topic}`);
+      setTimeout(() => addMsg('dpe-messages','bot', q.q), 250);
+    }
+
+    function askFollowup(idx) {
+      const t = state.test;
+      const q = t.questions[t.index];
+      const fu = q.followups[idx];
+      t.followupIdx = idx;
+      t.history.push({ role:'dpe-fu', topic: q.topic, content: fu.q });
+      addMsg('dpe-messages','bot', `<em class="text-slate-300 not-italic">Follow-up:</em> ${fu.q}`);
+    }
+
+    document.getElementById('dpe-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      handleAnswer(document.getElementById('dpe-input').value.trim());
+    });
+
+    function dpeSkip() {
+      const t = state.test;
+      if (!t || t.finished) return;
+      handleAnswer('I don\'t know — please move on.');
+    }
+
+    async function handleAnswer(text) {
+      const t = state.test;
+      if (!t || t.finished) return;
+      const input = document.getElementById('dpe-input');
+      if (!text) return;
+      input.value = '';
+
+      // Phase 1: still waiting on duration. Try to parse a number/minutes/hours.
+      if (t.awaitingDuration) {
+        addMsg('dpe-messages','user', escapeHtml(text));
+        const chips = document.getElementById('duration-chips');
+        if (chips) chips.remove();
+        const minutes = parseDurationText(text);
+        if (!minutes) {
+          showTyping('dpe-messages');
+          await new Promise(r => setTimeout(r, 500));
+          clearTyping('dpe-messages');
+          addMsg('dpe-messages','bot', "I didn't catch a duration. Try a number of minutes (like <em>30</em> or <em>45</em>) or something like <em>\"1 hour\"</em> / <em>\"90 minutes\"</em>.");
+          setTimeout(() => addDurationChips(), 250);
+          return;
+        }
+        applyDuration(minutes);
+        return;
+      }
+
+      // Phase 2: regular question/answer flow
+      addMsg('dpe-messages','user', escapeHtml(text));
+      t.history.push({ role:'user', content: text });
+
+      const cfg = t.cfg;
+      const q = t.questions[t.index];
+
+      // What are we grading? main or follow-up?
+      const isFollowup = t.followupIdx >= 0;
+      const gradeable = isFollowup ? q.followups[t.followupIdx] : q;
+
+      showTyping('dpe-messages');
+      const grading = await gradeAnswerAI(text, gradeable, t.mode);
+      clearTyping('dpe-messages');
+
+      // Reaction = tone-setting line + Claude's specific feedback.
+      // For partial/wrong, we still show the curator's ideal as a reference.
+      const fbHtml = grading.feedback ? `<br>${formatClaudeReply(grading.feedback)}` : '';
+      let reaction = '';
+      if (grading.result === 'correct') {
+        reaction = `<strong class="text-emerald-400">${cfg.rightTone}</strong>${fbHtml}`;
+      } else if (grading.result === 'partial') {
+        reaction = `<strong class="text-amber-300">${cfg.partial}</strong>${fbHtml}<br><br><em class="text-slate-400 not-italic">For reference:</em> ${gradeable.ideal}`;
+      } else {
+        reaction = `<strong class="text-rose-300">${cfg.wrongTone}</strong>${fbHtml}<br><br><em class="text-slate-400 not-italic">Reference answer:</em> ${gradeable.ideal}`;
+      }
+      addMsg('dpe-messages','bot', reaction);
+
+      // Track result for the MAIN question only
+      if (!isFollowup) {
+        t.results.push({
+          topic: q.topic,
+          mainGrade: grading.result,
+          followupGrades: [],
+          q: q.q,
+          userAnswer: text,
+          ideal: q.ideal,
+        });
+      } else {
+        const lastResult = t.results[t.results.length - 1];
+        lastResult.followupGrades.push(grading.result);
+        // If main was partial but follow-up was correct, upgrade
+        if (lastResult.mainGrade === 'partial' && grading.result === 'correct' && lastResult.followupGrades.length === 1) {
+          lastResult.mainGrade = 'correct';
+        }
+        // If main was correct but follow-up flunked at advanced, downgrade
+        if (lastResult.mainGrade === 'correct' && grading.result === 'wrong' && cfg.followups >= 2) {
+          lastResult.mainGrade = 'partial';
+        }
+      }
+
+      // Decide next step: another follow-up, or move to next main, or finish
+      const followupsAllowed = cfg.followups;
+      const nextFollowup = t.followupIdx + 1;
+      const hasMoreFollowups = nextFollowup < (q.followups || []).length && nextFollowup < followupsAllowed;
+      // Beginner: skip follow-ups entirely
+      if (followupsAllowed === 0) {
+        await advanceMain();
+        return;
+      }
+      // If main was wrong, ask only ONE follow-up at intermediate, but still drill at advanced
+      if (!isFollowup && grading.result === 'wrong' && cfg.followups < 2) {
+        await advanceMain();
+        return;
+      }
+      // Skip a planned follow-up if Claude judged the topic fully covered.
+      // Advanced mode still drills regardless — the whole point of advanced
+      // is unrelenting probing.
+      if (hasMoreFollowups && (grading.ask_followup !== false || cfg.followups >= 2)) {
+        await new Promise(r => setTimeout(r, 600));
+        askFollowup(nextFollowup);
+      } else if (hasMoreFollowups) {
+        // Claude said no more drilling — advance to next main question.
+        await advanceMain();
+        return;
+      } else {
+        await advanceMain();
+      }
+    }
+
+    async function advanceMain() {
+      const t = state.test;
+      if (t.finished) return;
+      // No fixed count anymore — keep going until time runs out (tickTimer triggers finish).
+      t.index++;
+      await new Promise(r => setTimeout(r, 700));
+      if (!t.finished) askMain();
+    }
+
+    function abandonTest() {
+      if (!state.test || state.test.finished) return;
+      if (!confirm('End the oral now and grade what you\'ve answered?')) return;
+      finishTest();
+    }
+
+    let timerInterval = null;
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      tickTimer();
+      timerInterval = setInterval(tickTimer, 1000);
+    }
+    function tickTimer() {
+      const t = state.test;
+      if (!t || t.finished || t.awaitingDuration || !t.startTime) return;
+      const elapsed = Math.floor((Date.now() - t.startTime) / 1000);
+      const remaining = Math.max(0, t.cfgTime - elapsed);
+      t.timeRemaining = remaining;
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      const el = document.getElementById('timer');
+      el.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+      el.classList.toggle('text-rose-400', remaining < 300);
+      // Time-based progress bar
+      const pct = Math.min(100, (elapsed / t.cfgTime) * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      if (remaining === 0) finishTest();
+    }
+
+    function gradeToScore(g) { return g === 'correct' ? 1 : (g === 'partial' ? 0.5 : 0); }
+
+    function finishTest() {
+      const t = state.test;
+      if (!t || t.finished) return;
+      t.finished = true;
+      clearInterval(timerInterval);
+
+      // No padding — only grade what the user actually engaged with.
+      // If timer ran out mid-question, count it as wrong unless already graded.
+      if (t.results.length === 0) {
+        // user never answered a single question; show empty results
+        t.results = [];
+      }
+
+      const total = Math.max(t.results.length, 1);
+      const points = t.results.reduce((s, r) => s + gradeToScore(r.mainGrade), 0);
+      const pct = t.results.length === 0 ? 0 : Math.round(points / total * 100);
+      const passed = t.results.length > 0 && pct >= t.cfg.passScore;
+
+      // Topic breakdown
+      const byTopic = {};
+      t.results.forEach(r => {
+        if (!byTopic[r.topic]) byTopic[r.topic] = { points: 0, total: 0 };
+        byTopic[r.topic].total++;
+        byTopic[r.topic].points += gradeToScore(r.mainGrade);
+      });
+
+      state.progress.testHistory.push({ score: pct, timestamp: Date.now() });
+      updateProgressUI();
+
+      // Wrap-up message in chat
+      addMsg('dpe-messages','system', `Oral complete — ${pct}% • ${passed ? 'Passed' : 'Did not pass'}`);
+      const closer = passed
+        ? `<strong>That's a passing oral.</strong> Solid foundation. Review any topic where you scored under 80%, and try the next difficulty up.`
+        : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> Don't sweat it — that's exactly what practice orals are for. Look at the topic breakdown below, drill the weak ones in CFI Chat or Study Guides, and come back.`;
+      setTimeout(() => addMsg('dpe-messages','bot', closer), 400);
+
+      // Results panel below the chat
+      const reviewHtml = t.results.map((r, i) => {
+        const cls = r.mainGrade === 'correct' ? 'border-emerald-500/40 bg-emerald-500/5' :
+                    r.mainGrade === 'partial' ? 'border-amber-500/40 bg-amber-500/5' :
+                    'border-rose-500/40 bg-rose-500/5';
+        const label = r.mainGrade === 'correct' ? '✓' : r.mainGrade === 'partial' ? '◐' : '✗';
+        const labelColor = r.mainGrade === 'correct' ? 'text-emerald-400' : r.mainGrade === 'partial' ? 'text-amber-300' : 'text-rose-400';
+        return `
+          <div class="border ${cls} rounded-lg p-4 mb-3">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div class="text-sm font-semibold text-slate-100">Q${i+1}. ${escapeHtml(r.q)}</div>
+              <span class="${labelColor} font-bold text-lg whitespace-nowrap">${label} <span class="text-xs uppercase tracking-wider">${r.topic}</span></span>
+            </div>
+            <div class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">You said:</strong> ${escapeHtml(r.userAnswer)}</div>
+            <div class="text-xs text-slate-300"><strong class="text-slate-100">Ideal answer:</strong> ${r.ideal}</div>
+          </div>`;
+      }).join('');
+
+      const topicRows = Object.entries(byTopic).map(([topic, s]) => {
+        const p = Math.round(s.points / s.total * 100);
+        const col = p >= 80 ? 'bg-emerald-500' : p >= 60 ? 'bg-amber-500' : 'bg-rose-500';
+        return `
+          <div class="mb-3">
+            <div class="flex justify-between text-sm mb-1">
+              <span class="font-medium text-slate-200">${topic}</span>
+              <span class="text-slate-400">${s.points.toFixed(1)}/${s.total} (${p}%)</span>
+            </div>
+            <div class="h-2 bg-zinc-900 rounded">
+              <div class="h-full ${col} rounded transition-all" style="width:${p}%"></div>
+            </div>
+          </div>`;
+      }).join('');
+
+      const r = document.getElementById('test-results');
+      r.classList.remove('hidden');
+      r.innerHTML = `
+        <div class="mt-8 bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden">
+          <div class="p-6 md:p-8 ${passed ? 'bg-gradient-to-br from-emerald-800 to-emerald-950' : 'bg-gradient-to-br from-rose-800 to-rose-950'} text-white">
+            <div class="text-sm uppercase tracking-wider opacity-80 mb-1">${t.cfg.label} Oral • ${passed ? 'Passed' : 'Did not pass'}</div>
+            <div class="text-5xl font-bold mb-1">${pct}%</div>
+            <div class="text-sm opacity-90">Pass mark ${t.cfg.passScore}% • ${t.results.length} question${t.results.length === 1 ? '' : 's'} answered</div>
+          </div>
+          <div class="p-6 md:p-8 grid md:grid-cols-2 gap-6">
+            <div>
+              <h3 class="font-bold text-slate-100 mb-3">By Topic</h3>
+              ${topicRows}
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-100 mb-3">Next Steps</h3>
+              <p class="text-sm text-slate-400 mb-3">${passed
+                ? 'Solid work. Try a harder mode, or drill any topic that scored under 80%.'
+                : 'Drill topics that scored under 70% in CFI Chat or Study Guides, then take another oral.'}</p>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="goto('chat')" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">Open CFI Chat</button>
+                <button onclick="goto('study')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
+                <button onclick="resetTest()" class="px-4 py-2 text-sm rounded-lg border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Take Another Oral</button>
+              </div>
+            </div>
+          </div>
+          <div class="p-6 md:p-8 border-t border-zinc-900">
+            <h3 class="font-bold text-slate-100 mb-3">Question Review</h3>
+            ${reviewHtml}
+          </div>
+        </div>
+      `;
+      // Don't hide active chat — let user re-read it. Just bring results into view.
+      setTimeout(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+
+    function resetTest() {
+      state.test = null;
+      document.getElementById('test-results').classList.add('hidden');
+      document.getElementById('test-active').classList.add('hidden');
+      document.getElementById('test-picker').classList.remove('hidden');
+    }
+
+    // Cmd/Ctrl+Enter to submit DPE answer (single Enter inserts newline since we use textarea)
+    document.getElementById('dpe-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('dpe-form').dispatchEvent(new Event('submit'));
+      }
+    });
+
+    // ============================================================
+    //                    INIT
+    // ============================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      goto('home');
+      updateProgressUI();
+    });
+  </script>
+</body>
+</html>
