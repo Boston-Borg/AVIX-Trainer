@@ -10,7 +10,7 @@ services:
   - type: web
     name: avx
     runtime: python
-    plan: free                # bump to "starter" if you outgrow free tier
+    plan: starter             # $7/mo — stays warm 24/7, no cold starts
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn server:app
     autoDeploy: true
