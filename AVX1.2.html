@@ -373,7 +373,7 @@
                 </div>
                 <div>
                   <div class="text-xs uppercase tracking-wider text-slate-500" id="test-mode-label">Beginner</div>
-                  <div class="text-sm font-semibold text-slate-100">Question <span id="q-current">—</span></div>
+                  <div class="text-sm font-semibold text-slate-100" id="current-topic">Practice Oral</div>
                 </div>
               </div>
               <div class="text-right">
@@ -1564,59 +1564,57 @@ Style:
       },
     ];
 
+    // Difficulty configs. `followups` is the max number of AI-generated detail
+    // probes the DPE will ask per main question. The right/wrong "tone" lines
+    // are kept as quiet fallbacks for when the AI feedback is unavailable —
+    // normally Claude's own feedback carries the reaction.
     const dpeConfig = {
       beginner: {
         label: 'Beginner', followups: 0, passScore: 70,
         intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it friendly — I'll ask fundamental questions covering the core PPL areas. Take your time, type your answer in your own words. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
         startReadyLine: "Ready when you are. Here's the first one:",
-        partial: "That's part of it. Want to add anything?",
-        wrongTone: "Not quite — let me give you the right answer:",
-        rightTone: "Good answer.",
+        wrongTone: "Not quite.",
       },
       intermediate: {
         label: 'Intermediate', followups: 1, passScore: 70,
-        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. I'll be asking scenario questions across the core knowledge areas, and on most of them I'll come back with a follow-up to dig into your reasoning. Explain your thought process, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
-        startReadyLine: "Let's begin. First question:",
-        partial: "I want to push you a bit further — add to that.",
-        wrongTone: "Let me correct that:",
-        rightTone: "Solid. Let me probe a bit further:",
+        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. I'll ask scenario questions across the core knowledge areas. If you cover the core, I'll likely zero in on whatever detail you skipped over. Explain your thought process, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
+        startReadyLine: "Let's begin.",
+        wrongTone: "Let me correct that.",
       },
       advanced: {
         label: 'Advanced', followups: 3, passScore: 70,
-        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. Deep scenario questions with multiple drill-down follow-ups on each. Sloppy answers will get probed harder. Don't bluff; if you don't know, say so. The grade is based on whether your decision-making would keep an aircraft and its passengers safe.<br><br><strong>How long would you like this session to last?</strong>`,
+        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. I'll probe whatever specific details you leave out. Don't bluff; if you don't know, say so. The grade is based on whether your decision-making would keep an aircraft and its passengers safe.<br><br><strong>How long would you like this session to last?</strong>`,
         startReadyLine: "Let's begin.",
-        partial: "Insufficient — give me more.",
-        wrongTone: "That's wrong. The correct answer:",
-        rightTone: "Acceptable. Going deeper:",
+        wrongTone: "That's wrong.",
       },
     };
 
     function shuffle(a) { const arr=[...a]; for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
 
-    // Original keyword-based grader. Kept as the fallback when the AI grade
-    // call fails (network blip, server down, etc.) so the oral never stalls.
+    // Fallback keyword grader. Binary correct/wrong only — generous, matches
+    // the new "correct if the core was answered" philosophy. Used when the
+    // AI grade call fails (network blip, server down) so the oral never stalls.
     function gradeAnswer(text, q) {
-      if (!text) return { result: 'wrong', hits: 0, feedback: '', ask_followup: true };
+      if (!text) return { result: 'wrong', hits: 0, feedback: '', next_question: null };
       const lower = ' ' + text.toLowerCase() + ' ';
       let hits = 0;
       const seen = new Set();
-      for (const k of q.keys) {
+      for (const k of (q.keys || [])) {
         const key = k.toLowerCase();
         if (seen.has(key)) continue;
         if (lower.includes(key)) { hits++; seen.add(key); }
       }
-      const min = q.minHits || 1;
-      if (hits >= min) return { result: 'correct', hits, feedback: '', ask_followup: true };
-      if (hits > 0) return { result: 'partial', hits, feedback: '', ask_followup: true };
-      return { result: 'wrong', hits, feedback: '', ask_followup: true };
+      // Liberal: any hit counts as correct (gist captured). Zero hits = wrong.
+      if (hits > 0) return { result: 'correct', hits, feedback: '', next_question: null };
+      return { result: 'wrong', hits, feedback: '', next_question: null };
     }
 
-    // AI-powered grader. Calls /api/grade which uses Claude to read the
-    // student's answer against the curator's ideal answer and return a
-    // verdict + score + tailored feedback + follow-up recommendation.
-    // Falls back to keyword grading if the API call fails.
+    // AI-powered grader. Calls /api/grade which uses Claude to judge whether
+    // the student's answer covered the core of the question (correct) or not
+    // (wrong) and to optionally generate a focused follow-up question targeting
+    // any specific detail the student missed.
     async function gradeAnswerAI(text, q, mode) {
-      if (!text) return { result: 'wrong', score: 0, feedback: '', ask_followup: true };
+      if (!text) return { result: 'wrong', score: 0, feedback: '', next_question: null };
       const difficulty = mode === 'beginner' ? 'beginner'
                        : mode === 'advanced'  ? 'checkride'
                        : 'intermediate';
@@ -1627,20 +1625,18 @@ Style:
           body: JSON.stringify({
             question: q.q,
             answer: text,
-            ideal: q.ideal,
+            ideal: q.ideal || '',
             difficulty
           })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Grade failed (${res.status})`);
-        const result = data.verdict === 'correct' ? 'correct'
-                     : data.verdict === 'partial' ? 'partial'
-                     : 'wrong';
+        const result = data.verdict === 'correct' ? 'correct' : 'wrong';
         return {
           result,
-          score: typeof data.score === 'number' ? data.score : 0,
+          score: typeof data.score === 'number' ? data.score : (result === 'correct' ? 90 : 30),
           feedback: data.feedback || '',
-          ask_followup: data.ask_followup !== false
+          next_question: data.next_question || null
         };
       } catch (err) {
         console.warn('AI grading failed, falling back to keyword grading:', err);
@@ -1669,7 +1665,7 @@ Style:
       document.getElementById('test-results').classList.add('hidden');
       document.getElementById('test-active').classList.remove('hidden');
       document.getElementById('test-mode-label').textContent = cfg.label + ' Oral';
-      document.getElementById('q-current').textContent = '—';
+      document.getElementById('current-topic').textContent = 'Practice Oral';
       document.getElementById('progress-bar').style.width = '0%';
       document.getElementById('dpe-messages').innerHTML = '';
       document.getElementById('dpe-input').value = '';
@@ -1757,19 +1753,22 @@ Style:
       }
       const q = t.questions[t.index];
       t.followupIdx = -1;
+      t.currentFollowup = null;
       t.history.push({ role:'dpe-q', topic: q.topic, content: q.q });
-      document.getElementById('q-current').textContent = (t.index + 1);
-      addMsg('dpe-messages','system', `Question ${t.index + 1} • ${q.topic}`);
-      setTimeout(() => addMsg('dpe-messages','bot', q.q), 250);
+      // Quiet topic indicator in the header — no in-chat "Question N • Topic" bubble.
+      document.getElementById('current-topic').textContent = q.topic;
+      addMsg('dpe-messages','bot', q.q);
     }
 
-    function askFollowup(idx) {
+    // Ask a follow-up generated by the AI grader. Replaces the old scripted
+    // follow-up bank — when the grader notices a missing detail, it returns
+    // a one-sentence probe and we just ask it conversationally.
+    function askFollowupText(questionText, topic) {
       const t = state.test;
-      const q = t.questions[t.index];
-      const fu = q.followups[idx];
-      t.followupIdx = idx;
-      t.history.push({ role:'dpe-fu', topic: q.topic, content: fu.q });
-      addMsg('dpe-messages','bot', `<em class="text-slate-300 not-italic">Follow-up:</em> ${fu.q}`);
+      t.followupIdx = (t.followupIdx >= 0 ? t.followupIdx + 1 : 0);
+      t.currentFollowup = { q: questionText, ideal: '', topic };
+      t.history.push({ role:'dpe-fu', topic, content: questionText });
+      addMsg('dpe-messages','bot', questionText);
     }
 
     document.getElementById('dpe-form').addEventListener('submit', async (e) => {
@@ -1815,28 +1814,29 @@ Style:
       const cfg = t.cfg;
       const q = t.questions[t.index];
 
-      // What are we grading? main or follow-up?
-      const isFollowup = t.followupIdx >= 0;
-      const gradeable = isFollowup ? q.followups[t.followupIdx] : q;
+      // What are we grading? main or AI-generated follow-up?
+      const isFollowup = t.followupIdx >= 0 && !!t.currentFollowup;
+      const gradeable = isFollowup ? t.currentFollowup : q;
 
       showTyping('dpe-messages');
       const grading = await gradeAnswerAI(text, gradeable, t.mode);
       clearTyping('dpe-messages');
 
-      // Reaction = tone-setting line + Claude's specific feedback.
-      // For partial/wrong, we still show the curator's ideal as a reference.
-      const fbHtml = grading.feedback ? `<br>${formatClaudeReply(grading.feedback)}` : '';
-      let reaction = '';
-      if (grading.result === 'correct') {
-        reaction = `<strong class="text-emerald-400">${cfg.rightTone}</strong>${fbHtml}`;
-      } else if (grading.result === 'partial') {
-        reaction = `<strong class="text-amber-300">${cfg.partial}</strong>${fbHtml}<br><br><em class="text-slate-400 not-italic">For reference:</em> ${gradeable.ideal}`;
-      } else {
-        reaction = `<strong class="text-rose-300">${cfg.wrongTone}</strong>${fbHtml}<br><br><em class="text-slate-400 not-italic">Reference answer:</em> ${gradeable.ideal}`;
+      // Reaction: just the AI's natural feedback. Brief affirmation for correct,
+      // brief correction + the curator's reference for wrong. No "you got partial
+      // credit" middle ground anymore — it's a clean conversational beat.
+      const fbHtml = grading.feedback ? formatClaudeReply(grading.feedback) : '';
+      let reaction = fbHtml;
+      if (grading.result === 'wrong') {
+        const refLine = gradeable.ideal
+          ? `<br><br><em class="text-slate-400 not-italic">Reference:</em> ${gradeable.ideal}`
+          : '';
+        reaction = (fbHtml || `<strong class="text-rose-300">${cfg.wrongTone}</strong>`) + refLine;
       }
-      addMsg('dpe-messages','bot', reaction);
+      if (reaction) addMsg('dpe-messages','bot', reaction);
 
-      // Track result for the MAIN question only
+      // Track result for the MAIN question only. Follow-ups are bonus turns that
+      // don't change the main grade (the main was already marked correct/wrong).
       if (!isFollowup) {
         t.results.push({
           topic: q.topic,
@@ -1849,40 +1849,20 @@ Style:
       } else {
         const lastResult = t.results[t.results.length - 1];
         lastResult.followupGrades.push(grading.result);
-        // If main was partial but follow-up was correct, upgrade
-        if (lastResult.mainGrade === 'partial' && grading.result === 'correct' && lastResult.followupGrades.length === 1) {
-          lastResult.mainGrade = 'correct';
-        }
-        // If main was correct but follow-up flunked at advanced, downgrade
-        if (lastResult.mainGrade === 'correct' && grading.result === 'wrong' && cfg.followups >= 2) {
-          lastResult.mainGrade = 'partial';
-        }
       }
 
-      // Decide next step: another follow-up, or move to next main, or finish
-      const followupsAllowed = cfg.followups;
-      const nextFollowup = t.followupIdx + 1;
-      const hasMoreFollowups = nextFollowup < (q.followups || []).length && nextFollowup < followupsAllowed;
-      // Beginner: skip follow-ups entirely
-      if (followupsAllowed === 0) {
-        await advanceMain();
-        return;
-      }
-      // If main was wrong, ask only ONE follow-up at intermediate, but still drill at advanced
-      if (!isFollowup && grading.result === 'wrong' && cfg.followups < 2) {
-        await advanceMain();
-        return;
-      }
-      // Skip a planned follow-up if Claude judged the topic fully covered.
-      // Advanced mode still drills regardless — the whole point of advanced
-      // is unrelenting probing.
-      if (hasMoreFollowups && (grading.ask_followup !== false || cfg.followups >= 2)) {
-        await new Promise(r => setTimeout(r, 600));
-        askFollowup(nextFollowup);
-      } else if (hasMoreFollowups) {
-        // Claude said no more drilling — advance to next main question.
-        await advanceMain();
-        return;
+      // Decide next step. The AI may have generated a focused follow-up question
+      // probing whatever detail the student missed — if so, ask it (subject to
+      // the difficulty's follow-up budget). Otherwise advance to the next main.
+      const followupsAllowed = cfg.followups || 0;
+      const followupsUsed = isFollowup ? (t.followupIdx + 1) : 0;
+      const canFollowup = !!grading.next_question
+                         && followupsUsed < followupsAllowed
+                         && grading.result === 'correct';
+
+      if (canFollowup) {
+        await new Promise(r => setTimeout(r, 700));
+        askFollowupText(grading.next_question, q.topic);
       } else {
         await advanceMain();
       }
@@ -1926,7 +1906,9 @@ Style:
       if (remaining === 0) finishTest();
     }
 
-    function gradeToScore(g) { return g === 'correct' ? 1 : (g === 'partial' ? 0.5 : 0); }
+    // Binary scoring: correct = 1 point, anything else = 0. (Partial verdicts
+    // are no longer issued by the grader.)
+    function gradeToScore(g) { return g === 'correct' ? 1 : 0; }
 
     function finishTest() {
       const t = state.test;
@@ -1966,11 +1948,11 @@ Style:
 
       // Results panel below the chat
       const reviewHtml = t.results.map((r, i) => {
-        const cls = r.mainGrade === 'correct' ? 'border-emerald-500/40 bg-emerald-500/5' :
-                    r.mainGrade === 'partial' ? 'border-amber-500/40 bg-amber-500/5' :
-                    'border-rose-500/40 bg-rose-500/5';
-        const label = r.mainGrade === 'correct' ? '✓' : r.mainGrade === 'partial' ? '◐' : '✗';
-        const labelColor = r.mainGrade === 'correct' ? 'text-emerald-400' : r.mainGrade === 'partial' ? 'text-amber-300' : 'text-rose-400';
+        const cls = r.mainGrade === 'correct'
+          ? 'border-emerald-500/40 bg-emerald-500/5'
+          : 'border-rose-500/40 bg-rose-500/5';
+        const label = r.mainGrade === 'correct' ? '✓' : '✗';
+        const labelColor = r.mainGrade === 'correct' ? 'text-emerald-400' : 'text-rose-400';
         return `
           <div class="border ${cls} rounded-lg p-4 mb-3">
             <div class="flex items-start justify-between gap-3 mb-2">

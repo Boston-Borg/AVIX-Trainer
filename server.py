@@ -345,11 +345,11 @@ def grade():
     data = request.get_json(silent=True) or {}
     question = (data.get("question") or "").strip()
     answer = (data.get("answer") or "").strip()
-    ideal = (data.get("ideal") or "").strip()
+    ideal = (data.get("ideal") or "").strip()  # optional now
     difficulty = (data.get("difficulty") or "checkride").strip()  # beginner/intermediate/checkride
 
-    if not question or not answer or not ideal:
-        return jsonify(error="`question`, `answer`, and `ideal` are required."), 400
+    if not question or not answer:
+        return jsonify(error="`question` and `answer` are required."), 400
 
     # Pull RAG context to ground the feedback in real FAA sources.
     context_block = ""
@@ -362,25 +362,37 @@ def grade():
             log.exception("Retrieval failed in /api/grade")
 
     system_prompt = (
-        f"You are a Designated Pilot Examiner (DPE) grading a student's verbal "
-        f"answer in a {difficulty}-level practice oral. You have the question, "
-        f"the student's answer, and the curator's ideal answer.\n\n"
-        f"Tone:\n"
-        f"- beginner: encouraging coach, generous on partial credit\n"
-        f"- intermediate: balanced examiner, fair but precise\n"
-        f"- checkride: rigorous DPE, holds the line on safety-critical items\n\n"
+        f"You are a Designated Pilot Examiner (DPE) running a {difficulty}-level "
+        f"practice oral. Grade the student's verbal answer.\n\n"
+        f"GRADING PHILOSOPHY (important):\n"
+        f"- Mark 'correct' as long as the student covered the CORE of the question. "
+        f"Be generous — if they got the main idea right, that's a pass. Don't penalize "
+        f"missing details, imprecise numbers, or omitted edge cases.\n"
+        f"- Mark 'incorrect' only when the core understanding is wrong, the student "
+        f"misidentified a key concept, or they didn't actually address the question.\n\n"
+        f"FOLLOW-UP QUESTIONS:\n"
+        f"When the student is 'correct' but missed a specific detail you'd want to "
+        f"probe (a number, a sub-rule, an exception, a scenario variation), generate "
+        f"a SHORT focused follow-up question that targets ONLY that detail. This "
+        f"becomes the next conversational turn — keep it to one sentence, asked the "
+        f"way a real examiner would ask it in conversation. If the student's answer "
+        f"was complete and nothing meaningful is missing, return null for next_question.\n\n"
+        f"TONE:\n"
+        f"- beginner: encouraging coach, casual, short feedback\n"
+        f"- intermediate: balanced examiner, fair, conversational\n"
+        f"- checkride: rigorous DPE, still respectful, holds the line on safety-critical items\n\n"
         + (f"FAA EXCERPTS for ground truth:\n{context_block}\n\n" if context_block else "")
         + "Output ONLY a JSON object with these exact keys:\n"
-        '  {"verdict": "correct" | "partial" | "incorrect",\n'
+        '  {"verdict": "correct" | "incorrect",\n'
         '   "score": <0-100>,\n'
-        '   "feedback": "<2-4 sentences, address the student in second person, cite FAA sources where helpful>",\n'
-        '   "ask_followup": <true if a probing follow-up would be educational, false if the topic is fully covered>}\n\n'
+        '   "feedback": "<1-3 sentences, address the student in second person, conversational, cite FAA sources where helpful. For correct answers, brief affirmation. For incorrect, brief correction.>",\n'
+        '   "next_question": "<one-sentence follow-up probing the missing detail, or null if nothing important is missing>"}\n\n'
         "No commentary, no markdown fences."
     )
     user_prompt = (
         f"QUESTION: {question}\n\n"
-        f"STUDENT'S ANSWER: {answer}\n\n"
-        f"IDEAL ANSWER (curator's reference, not to be quoted verbatim): {ideal}"
+        f"STUDENT'S ANSWER: {answer}"
+        + (f"\n\nCURATOR'S REFERENCE ANSWER (for your context, not to be quoted): {ideal}" if ideal else "")
     )
 
     try:
