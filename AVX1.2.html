@@ -1564,26 +1564,29 @@ Style:
       },
     ];
 
-    // Difficulty configs. `followups` is the max number of AI-generated detail
-    // probes the DPE will ask per main question. The right/wrong "tone" lines
-    // are kept as quiet fallbacks for when the AI feedback is unavailable —
-    // normally Claude's own feedback carries the reaction.
+    // Difficulty configs. `followups` is the max number of chained sub-questions
+    // the DPE will ask on a topic before switching:
+    //   - Beginner (2): walks laterally through related sub-topics, brief & friendly.
+    //   - Intermediate (3): probes details, scenario variations, and tests judgment.
+    //   - Advanced (5): drills exhaustively, stacks multi-part questions, demands mastery.
+    // The right/wrong "tone" lines are quiet fallbacks for when the AI feedback
+    // is unavailable — normally Claude's own feedback carries the reaction.
     const dpeConfig = {
       beginner: {
-        label: 'Beginner', followups: 0, passScore: 70,
-        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it friendly — I'll ask fundamental questions covering the core PPL areas. Take your time, type your answer in your own words. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
+        label: 'Beginner', followups: 2, passScore: 70,
+        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it conversational — I'll ask a question, you answer in your own words, and I'll walk us naturally through each topic the way a real oral feels. Brief affirmations, no drilling. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
         startReadyLine: "Ready when you are. Here's the first one:",
         wrongTone: "Not quite.",
       },
       intermediate: {
-        label: 'Intermediate', followups: 1, passScore: 70,
-        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. I'll ask scenario questions across the core knowledge areas. If you cover the core, I'll likely zero in on whatever detail you skipped over. Explain your thought process, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
+        label: 'Intermediate', followups: 3, passScore: 70,
+        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. After your answer I'll probe — sometimes a specific detail you skipped, sometimes a scenario variation, sometimes a judgment question to test whether you really understand the rule. Explain your thinking, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
         startReadyLine: "Let's begin.",
         wrongTone: "Let me correct that.",
       },
       advanced: {
-        label: 'Advanced', followups: 3, passScore: 70,
-        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. I'll probe whatever specific details you leave out. Don't bluff; if you don't know, say so. The grade is based on whether your decision-making would keep an aircraft and its passengers safe.<br><br><strong>How long would you like this session to last?</strong>`,
+        label: 'Advanced', followups: 5, passScore: 70,
+        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. Expect drill-down questions, "what else?" probes, and multi-part follow-ups stacked in one turn. I won't switch topics until you've shown comprehensive knowledge. Don't bluff; if you don't know, say so.<br><br><strong>How long would you like this session to last?</strong>`,
         startReadyLine: "Let's begin.",
         wrongTone: "That's wrong.",
       },
@@ -1851,14 +1854,15 @@ Style:
         lastResult.followupGrades.push(grading.result);
       }
 
-      // Decide next step. The AI may have generated a focused follow-up question
-      // probing whatever detail the student missed — if so, ask it (subject to
-      // the difficulty's follow-up budget). Otherwise advance to the next main.
+      // Decide next step. The AI may have generated a follow-up question — either
+      // a detail probe, a scenario variation, a judgment test, or (in Intermediate)
+      // a teaching question pivoting off a wrong answer. Trust the AI's judgment;
+      // ask whatever it returned, subject to the difficulty's follow-up budget.
+      // The grader returns null for next_question when the topic is naturally
+      // exhausted and we should move to a new main question.
       const followupsAllowed = cfg.followups || 0;
       const followupsUsed = isFollowup ? (t.followupIdx + 1) : 0;
-      const canFollowup = !!grading.next_question
-                         && followupsUsed < followupsAllowed
-                         && grading.result === 'correct';
+      const canFollowup = !!grading.next_question && followupsUsed < followupsAllowed;
 
       if (canFollowup) {
         await new Promise(r => setTimeout(r, 700));
