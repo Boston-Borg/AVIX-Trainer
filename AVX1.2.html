@@ -1999,9 +1999,11 @@ Style:
                 ? 'Solid work. Try a harder mode, or drill any topic that scored under 80%.'
                 : 'Drill topics that scored under 70% in CFI Chat or Study Guides, then take another oral.'}</p>
               <div class="flex flex-wrap gap-2">
-                <button onclick="goto('chat')" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">Open CFI Chat</button>
+                <button onclick="resetTest()" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center gap-2">
+                  <i data-lucide="rotate-cw" class="w-4 h-4"></i> Take Another Oral
+                </button>
+                <button onclick="goto('chat')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Open CFI Chat</button>
                 <button onclick="goto('study')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
-                <button onclick="resetTest()" class="px-4 py-2 text-sm rounded-lg border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Take Another Oral</button>
               </div>
             </div>
           </div>
@@ -2011,15 +2013,39 @@ Style:
           </div>
         </div>
       `;
+      // Render the Lucide icons inside the newly-injected results HTML.
+      lucide.createIcons();
       // Don't hide active chat — let user re-read it. Just bring results into view.
       setTimeout(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
 
     function resetTest() {
+      // Wipe state and stop any background ticker so the next oral starts clean.
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       state.test = null;
+
+      // Reset the visible chrome of the active oral panel so it's empty when
+      // the next test starts (in case the user opens the picker and a brief
+      // flicker would otherwise show old state).
+      const dpeMsgs = document.getElementById('dpe-messages');
+      if (dpeMsgs) dpeMsgs.innerHTML = '';
+      const dpeInput = document.getElementById('dpe-input');
+      if (dpeInput) dpeInput.value = '';
+      const timer = document.getElementById('timer');
+      if (timer) { timer.textContent = '—:—'; timer.classList.remove('text-rose-400'); }
+      const progressBar = document.getElementById('progress-bar');
+      if (progressBar) progressBar.style.width = '0%';
+      const topic = document.getElementById('current-topic');
+      if (topic) topic.textContent = 'Practice Oral';
+
+      // Hide results + active panels, show the difficulty picker.
       document.getElementById('test-results').classList.add('hidden');
       document.getElementById('test-active').classList.add('hidden');
-      document.getElementById('test-picker').classList.remove('hidden');
+      const picker = document.getElementById('test-picker');
+      picker.classList.remove('hidden');
+
+      // Bring the picker into view so it's obvious where the user landed.
+      setTimeout(() => picker.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
 
     // Cmd/Ctrl+Enter to submit DPE answer (single Enter inserts newline since we use textarea)
