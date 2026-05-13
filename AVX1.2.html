@@ -805,7 +805,9 @@
     const CFI_SYSTEM_PROMPT = `You are AVIX, an FAA-accurate Certified Flight Instructor (CFI) coaching a student pilot for the Private Pilot License (PPL) checkride.
 
 Style:
-- Precise and conversational. No filler.
+- Maintain a semi-formal, professional instructor tone. Speak as a knowledgeable CFI would speak with a student in a ground school setting.
+- Avoid colloquialisms and casual idioms (e.g., "bite you", "gonna", "sweat it", "no biggie", "ace it", "crush it", "watch out for", "tricky bits"). Use straightforward, precise language instead.
+- Conversational but professional. No filler.
 - When citing rules, reference the specific FAR (e.g., "14 CFR 91.155") or AIM section.
 - Use **bold** for key terms and acronyms.
 - Keep answers focused — short answer first, then detail if useful.
@@ -1099,6 +1101,10 @@ Style:
       const titleEl = document.getElementById('resource-detail-title');
       const bodyEl = document.getElementById('resource-detail-body');
 
+      // Reset flashcard state so the keyboard handler doesn't act on stale data
+      // when the user opens a study guide or quiz after a flashcard session.
+      _fc = null;
+
       titleEl.textContent = t.name;
       document.getElementById('resource-detail').classList.remove('hidden');
 
@@ -1255,24 +1261,132 @@ Style:
       return html + citationFooter(citations);
     }
 
+    // ---- Quizlet-style flash cards -----------------------------------------
+    // One card at a time. Click the card or press Space to flip. Arrow keys
+    // navigate. State lives in `_fc` and gets rebuilt into #flashcard-deck
+    // each time it changes.
+    let _fc = null;  // { cards: [{q,a}], idx: 0, flipped: false, citations: [] }
+
     function renderFlashcards(cards, citations) {
       if (!Array.isArray(cards) || cards.length === 0) {
         return errorStub('No flash cards were generated.');
       }
-      const list = cards.map((c, i) => `
-        <details class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-blue-500/40 transition">
-          <summary class="cursor-pointer px-4 py-3 font-semibold text-slate-200 flex items-start gap-3">
-            <span class="text-blue-400 text-xs font-mono mt-0.5">Q${i + 1}</span>
-            <span class="flex-1">${escapeHtml(c.q || '')}</span>
-            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-500 flex-shrink-0 mt-1"></i>
-          </summary>
-          <div class="px-4 pb-4 pt-1 text-slate-300 text-sm leading-relaxed border-t border-zinc-800/60">
-            ${escapeHtml(c.a || '').replace(/\n/g, '<br>')}
-          </div>
-        </details>
-      `).join('');
-      return `<div class="space-y-3">${list}</div>` + citationFooter(citations);
+      _fc = { cards, idx: 0, flipped: false, citations: citations || [] };
+      return `<div id="flashcard-deck">${renderFlashcardView()}</div>`
+           + citationFooter(citations);
     }
+
+    function renderFlashcardView() {
+      if (!_fc) return '';
+      const { cards, idx, flipped } = _fc;
+      const card = cards[idx];
+      const front = escapeHtml(card.q || '').replace(/\n/g, '<br>');
+      const back  = escapeHtml(card.a || '').replace(/\n/g, '<br>');
+
+      // Progress dots — up to 30 visible, otherwise just a fraction
+      const showDots = cards.length <= 30;
+      const dots = showDots
+        ? cards.map((_, i) => `<span class="w-1.5 h-1.5 rounded-full ${i === idx ? 'bg-blue-400' : 'bg-zinc-700'}"></span>`).join('')
+        : `<span class="text-xs text-slate-400 font-mono">${idx + 1} / ${cards.length}</span>`;
+
+      return `
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Card ${idx + 1} of ${cards.length}</div>
+          <button onclick="restartFlashcards()" class="text-xs text-blue-400 hover:text-blue-300 underline" title="Back to the first card">Restart</button>
+        </div>
+
+        <button id="flashcard-button"
+                onclick="flipFlashcard()"
+                aria-label="Flashcard — click to flip"
+                class="block w-full min-h-[260px] md:min-h-[320px] p-6 md:p-10 mb-5 rounded-2xl bg-zinc-900 border-2 ${flipped ? 'border-blue-500/60' : 'border-zinc-800'} hover:border-blue-500/60 transition text-left flex flex-col justify-between focus:outline-none focus:border-blue-500">
+          <div>
+            <div class="text-[10px] uppercase tracking-wider ${flipped ? 'text-blue-400' : 'text-slate-500'} font-semibold mb-3">${flipped ? 'Answer' : 'Question'}</div>
+            <div class="${flipped ? 'text-slate-100 text-base md:text-lg leading-relaxed' : 'text-slate-100 text-lg md:text-xl font-semibold leading-snug'}">
+              ${flipped ? back : front}
+            </div>
+          </div>
+          <div class="mt-6 text-xs text-slate-500 text-center">
+            ${flipped ? 'Click or press Space to see the question' : 'Click or press Space to reveal the answer'}
+          </div>
+        </button>
+
+        <div class="flex items-center justify-between gap-3">
+          <button onclick="prevFlashcard()" ${idx === 0 ? 'disabled' : ''}
+                  class="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 disabled:opacity-30 disabled:cursor-not-allowed text-slate-200 font-semibold inline-flex items-center gap-2 transition">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i> Previous
+          </button>
+
+          <div class="flex items-center gap-1.5 flex-wrap justify-center max-w-[60%]">
+            ${dots}
+          </div>
+
+          <button onclick="nextFlashcard()" ${idx === cards.length - 1 ? 'disabled' : ''}
+                  class="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 disabled:opacity-30 disabled:cursor-not-allowed text-slate-200 font-semibold inline-flex items-center gap-2 transition">
+            Next <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="mt-4 text-center text-[11px] text-slate-500">
+          Space = flip &nbsp;·&nbsp; ← → = previous / next
+        </div>
+      `;
+    }
+
+    function updateFlashcardView() {
+      const deck = document.getElementById('flashcard-deck');
+      if (!deck) return;
+      deck.innerHTML = renderFlashcardView();
+      lucide.createIcons();
+      // Move focus to the card so subsequent Space presses flip without
+      // needing a click first.
+      const btn = document.getElementById('flashcard-button');
+      if (btn) btn.focus({ preventScroll: true });
+    }
+
+    function flipFlashcard() {
+      if (!_fc) return;
+      _fc.flipped = !_fc.flipped;
+      updateFlashcardView();
+    }
+    function nextFlashcard() {
+      if (!_fc || _fc.idx >= _fc.cards.length - 1) return;
+      _fc.idx++;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+    function prevFlashcard() {
+      if (!_fc || _fc.idx <= 0) return;
+      _fc.idx--;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+    function restartFlashcards() {
+      if (!_fc) return;
+      _fc.idx = 0;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+
+    // Global keyboard handler for flashcards. Active only while the resource
+    // detail modal is open AND we're rendering a flashcard deck.
+    document.addEventListener('keydown', (e) => {
+      if (!_fc) return;
+      const modal = document.getElementById('resource-detail');
+      if (!modal || modal.classList.contains('hidden')) return;
+      // Don't hijack typing in form fields.
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        flipFlashcard();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextFlashcard();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevFlashcard();
+      }
+    });
 
     // Quizzes use real radio inputs so selection works without any custom click
     // handlers (which the resource modal's stopPropagation was eating).
@@ -1400,6 +1514,8 @@ Style:
     function closeResource(e) {
       if (e && e.target.id !== 'resource-detail') return;
       document.getElementById('resource-detail').classList.add('hidden');
+      // Stop the flashcard keyboard handler from acting on closed-modal content.
+      _fc = null;
     }
 
     // ============================================================
@@ -1520,7 +1636,7 @@ Style:
       },
       {
         topic: 'Aerodynamics',
-        q: "Explain ground effect — what's happening, and where does it bite you?",
+        q: "Explain ground effect — what's happening aerodynamically, and what are its operational risks?",
         keys: ['wingspan','induced drag','reduce','near','surface','ground','float','lift','low','climb'],
         minHits: 2,
         ideal: "Within roughly one wingspan of the surface, the wingtip vortices are partially blocked, downwash is reduced, and induced drag drops noticeably. The airplane wants to float on landing, and on a high-DA takeoff you might lift off in ground effect but be unable to climb out — a classic accident scenario.",
@@ -1947,7 +2063,7 @@ Style:
       addMsg('dpe-messages','system', `Oral complete — ${pct}% • ${passed ? 'Passed' : 'Did not pass'}`);
       const closer = passed
         ? `<strong>That's a passing oral.</strong> Solid foundation. Review any topic where you scored under 80%, and try the next difficulty up.`
-        : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> Don't sweat it — that's exactly what practice orals are for. Look at the topic breakdown below, drill the weak ones in CFI Chat or Study Guides, and come back.`;
+        : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> That's the purpose of a practice oral — to identify weak areas before the checkride. Review the topic breakdown below, study the areas that scored lowest in CFI Chat or the Resources tab, then take another oral.`;
       setTimeout(() => addMsg('dpe-messages','bot', closer), 400);
 
       // Results panel below the chat

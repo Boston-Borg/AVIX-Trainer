@@ -280,16 +280,26 @@ def generate():
         except Exception:  # noqa: BLE001
             log.exception("Retrieval failed in /api/generate; continuing without context")
 
+    # Shared tone guideline for all generated study material.
+    tone_rules = (
+        "Tone: semi-formal, professional instructor voice. Avoid colloquialisms "
+        "and casual idioms (e.g., 'bite you', 'gonna', 'crush it', 'ace it', "
+        "'sweat it', 'tricky bits', 'gotcha'). Write the way a CFI would write "
+        "a printed study handout — clear, precise, professional."
+    )
+
     system_prompt = (
         "You are an expert CFI creating accurate PPL study material for a student "
         "preparing for the checkride. Use the FAA excerpts below as your source of "
         "truth — do not invent regulations or page numbers.\n\n"
+        f"{tone_rules}\n\n"
         f"FAA EXCERPTS:\n{context_block}"
         if context_block
         else
         "You are an expert CFI creating accurate PPL study material for a student. "
         "(No FAA excerpts available — use general aviation knowledge and flag any "
-        "uncertain claims.)"
+        "uncertain claims.)\n\n"
+        f"{tone_rules}"
     )
     user_prompt = _PROMPTS[kind].format(topic=topic, count=count)
 
@@ -416,9 +426,13 @@ def grade():
         f"examiner, not a bully.\n\n"
 
         f"=== TONE ===\n"
-        f"- beginner: encouraging coach, casual, brief affirmations\n"
-        f"- intermediate: balanced examiner, fair, conversational, corrective when needed\n"
-        f"- checkride: rigorous DPE, demanding mastery, stays respectful\n\n"
+        f"- All difficulties: speak in a semi-formal, professional examiner tone. "
+        f"Avoid colloquialisms and casual idioms like 'bite you', 'gonna', 'sweat it', "
+        f"'no biggie', 'crush it', 'ace it', 'tricky bits', 'gotcha'. Use precise, "
+        f"professional language a real DPE would use in an oral exam.\n"
+        f"- beginner: encouraging but professional; brief, warm affirmations\n"
+        f"- intermediate: balanced examiner — fair, conversational, corrective when needed\n"
+        f"- checkride: rigorous DPE, demanding mastery, formal, stays respectful\n\n"
 
         + (f"FAA EXCERPTS for ground truth — use these for accuracy:\n{context_block}\n\n" if context_block else "")
 
