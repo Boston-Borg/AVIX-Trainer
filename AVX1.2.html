@@ -28,6 +28,15 @@
       border-radius: 14px 14px 14px 2px;
       border: 1px solid rgba(34, 197, 94, 0.55);
     }
+    /* Aviation-yellow bubble: shown when the DPE marks an answer partial —
+       core was covered but some required detail is missing. The bubble's
+       text IS the follow-up question itself, no acknowledgment preamble. */
+    .chat-msg-partial {
+      background: rgba(234, 179, 8, 0.10);
+      color: #fefce8;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(234, 179, 8, 0.55);
+    }
     /* Aviation-red bubble: shown when the DPE marks an answer wrong. */
     .chat-msg-wrong {
       background: rgba(239, 68, 68, 0.10);
@@ -92,6 +101,9 @@
                border-green-500/30 border-green-500/40 border-green-500/50 border-green-500/55
                text-green-300 text-green-400
                from-green-800 to-green-950
+               bg-yellow-500/5 bg-yellow-500/10 bg-yellow-500/15
+               border-yellow-500/30 border-yellow-500/40 border-yellow-500/50 border-yellow-500/55
+               text-yellow-300 text-yellow-400
                bg-red-500/5 bg-red-500/10 bg-red-500/15
                border-red-500/30 border-red-500/40 border-red-500/50 border-red-500/55
                text-red-300 text-red-400
@@ -802,12 +814,15 @@
       //   'user'        — user message bubble (blue, right-aligned)
       //   'bot'         — default bot bubble (dark, left-aligned)
       //   'bot-correct' — DPE feedback when verdict = correct (aviation green)
+      //   'bot-partial' — DPE follow-up when verdict = partial (aviation yellow);
+      //                   the bubble's text IS the next question, no preamble.
       //   'bot-wrong'   — DPE feedback when verdict = wrong  (aviation red)
       //   'system'      — small dashed status line (centered)
       let cls;
       if (role === 'user') cls = 'chat-msg-user';
       else if (role === 'system') cls = 'chat-msg-system';
       else if (role === 'bot-correct') cls = 'chat-msg-correct';
+      else if (role === 'bot-partial') cls = 'chat-msg-partial';
       else if (role === 'bot-wrong') cls = 'chat-msg-wrong';
       else cls = 'chat-msg-bot';
       inner.className = cls + ' max-w-[85%] px-4 py-3 text-sm shadow-sm';
@@ -1799,9 +1814,9 @@ Style:
 
     function shuffle(a) { const arr=[...a]; for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
 
-    // Fallback keyword grader. Binary correct/wrong only — generous, matches
-    // the new "correct if the core was answered" philosophy. Used when the
-    // AI grade call fails (network blip, server down) so the oral never stalls.
+    // Fallback keyword grader. Three verdicts: correct (all keys hit),
+    // partial (some hit), wrong (none hit). Used when the AI grade call
+    // fails (network blip, server down) so the oral never stalls.
     function gradeAnswer(text, q) {
       if (!text) return { result: 'wrong', hits: 0, feedback: '', next_question: null };
       const lower = ' ' + text.toLowerCase() + ' ';
@@ -1812,15 +1827,15 @@ Style:
         if (seen.has(key)) continue;
         if (lower.includes(key)) { hits++; seen.add(key); }
       }
-      // Liberal: any hit counts as correct (gist captured). Zero hits = wrong.
-      if (hits > 0) return { result: 'correct', hits, feedback: '', next_question: null };
+      const min = q.minHits || 1;
+      if (hits >= min) return { result: 'correct', hits, feedback: '', next_question: null };
+      if (hits > 0)    return { result: 'partial', hits, feedback: '', next_question: null };
       return { result: 'wrong', hits, feedback: '', next_question: null };
     }
 
-    // AI-powered grader. Calls /api/grade which uses Claude to judge whether
-    // the student's answer covered the core of the question (correct) or not
-    // (wrong) and to optionally generate a focused follow-up question targeting
-    // any specific detail the student missed.
+    // AI-powered grader. Calls /api/grade which uses Claude to issue one of
+    // three verdicts (correct / partial / wrong) and a focused follow-up
+    // question when the verdict is 'partial'.
     async function gradeAnswerAI(text, q, mode) {
       if (!text) return { result: 'wrong', score: 0, feedback: '', next_question: null };
       const difficulty = mode === 'beginner' ? 'beginner'
@@ -1839,10 +1854,16 @@ Style:
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Grade failed (${res.status})`);
-        const result = data.verdict === 'correct' ? 'correct' : 'wrong';
+        // Map server verdict to internal grade. 'incorrect' from the API is
+        // surfaced as 'wrong' in the frontend.
+        const v = data.verdict;
+        const result = v === 'correct' ? 'correct'
+                    : v === 'partial' ? 'partial'
+                    : 'wrong';
+        const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
         return {
           result,
-          score: typeof data.score === 'number' ? data.score : (result === 'correct' ? 90 : 30),
+          score: typeof data.score === 'number' ? data.score : defaultScore,
           feedback: data.feedback || '',
           next_question: data.next_question || null
         };
@@ -2030,20 +2051,31 @@ Style:
       const grading = await gradeAnswerAI(text, gradeable, t.mode);
       clearTyping('dpe-messages');
 
-      // Reaction: AI feedback rendered in an aviation-green bubble for correct
-      // verdicts, aviation-red for wrong. Wrong answers also get the curator's
-      // reference appended when available.
+      // Render the DPE's response based on verdict.
+      //   correct → green bubble with a brief affirmation, no follow-up.
+      //   partial → yellow bubble containing the next question ITSELF. No
+      //             acknowledgment preamble. The bubble text IS the question.
+      //   wrong   → red bubble with the AI's correction and the reference answer.
       const fbHtml = grading.feedback ? formatClaudeReply(grading.feedback) : '';
-      let reaction;
+      let reaction, reactionRole;
       if (grading.result === 'correct') {
         reaction = fbHtml || `<strong>Correct.</strong>`;
+        reactionRole = 'bot-correct';
+      } else if (grading.result === 'partial') {
+        // The yellow bubble is the next question. No preface, no "you got most
+        // of it but...". If the grader didn't supply a next_question (it should
+        // have), fall back to a neutral nudge.
+        reaction = grading.next_question
+          ? formatClaudeReply(grading.next_question)
+          : (fbHtml || `<em class="not-italic">Can you tell me more about that?</em>`);
+        reactionRole = 'bot-partial';
       } else {
         const refLine = gradeable.ideal
           ? `<br><br><em class="text-slate-400 not-italic">Reference:</em> ${gradeable.ideal}`
           : '';
         reaction = (fbHtml || `<strong>${cfg.wrongTone}</strong>`) + refLine;
+        reactionRole = 'bot-wrong';
       }
-      const reactionRole = grading.result === 'correct' ? 'bot-correct' : 'bot-wrong';
       addMsg('dpe-messages', reactionRole, reaction);
 
       // Track each answered turn (main OR follow-up) as its own result entry.
@@ -2058,19 +2090,21 @@ Style:
         ideal: gradeable.ideal || '',
       });
 
-      // Decide next step. The AI may have generated a follow-up question — either
-      // a detail probe, a scenario variation, a judgment test, or (in Intermediate)
-      // a teaching question pivoting off a wrong answer. Trust the AI's judgment;
-      // ask whatever it returned, subject to the difficulty's follow-up budget.
-      // The grader returns null for next_question when the topic is naturally
-      // exhausted and we should move to a new main question.
+      // Decide what happens next:
+      //   partial → the yellow bubble already shows the follow-up question, so
+      //             we just set up follow-up state (no separate ask). Subject
+      //             to the difficulty's follow-up budget.
+      //   correct or wrong → advance to the next main question.
       const followupsAllowed = cfg.followups || 0;
       const followupsUsed = isFollowup ? (t.followupIdx + 1) : 0;
       const canFollowup = !!grading.next_question && followupsUsed < followupsAllowed;
 
-      if (canFollowup) {
-        await new Promise(r => setTimeout(r, 700));
-        askFollowupText(grading.next_question, q.topic);
+      if (grading.result === 'partial' && canFollowup) {
+        // Yellow bubble already contained the question. Record follow-up state
+        // so the next answer is graded against THIS follow-up.
+        t.followupIdx = isFollowup ? t.followupIdx + 1 : 0;
+        t.currentFollowup = { q: grading.next_question, ideal: '', topic: q.topic };
+        t.history.push({ role:'dpe-fu', topic: q.topic, content: grading.next_question });
       } else {
         await advanceMain();
       }
@@ -2114,9 +2148,10 @@ Style:
       if (remaining === 0) finishTest();
     }
 
-    // Binary scoring: correct = 1 point, anything else = 0. (Partial verdicts
-    // are no longer issued by the grader.)
-    function gradeToScore(g) { return g === 'correct' ? 1 : 0; }
+    // Three-verdict scoring: correct = 1, partial = 0.5, wrong = 0.
+    function gradeToScore(g) {
+      return g === 'correct' ? 1 : g === 'partial' ? 0.5 : 0;
+    }
 
     function finishTest() {
       const t = state.test;
@@ -2161,16 +2196,18 @@ Style:
         : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> That's the purpose of a practice oral — to identify weak areas before the checkride. Review the topic breakdown below, study the areas that scored lowest in CFI Chat or the Resources tab, then take another oral.`;
       setTimeout(() => addMsg('dpe-messages','bot', closer), 400);
 
-      // Review list: every answered turn (main + follow-ups) shown individually.
-      // Sequential numbering within each topic block keeps the order intuitive
-      // (main question first, then its follow-ups). The "Follow-up" tag flags
-      // probe questions so the reader knows they're a different category.
+      // Review list: every answered turn (main + follow-ups) shown individually
+      // with verdict color (green/yellow/red) matching the chat-bubble palette.
       const reviewHtml = t.results.map((r, i) => {
-        const cls = r.grade === 'correct'
-          ? 'border-green-500/50 bg-green-500/5'
-          : 'border-red-500/50 bg-red-500/5';
-        const label = r.grade === 'correct' ? '✓' : '✗';
-        const labelColor = r.grade === 'correct' ? 'text-green-400' : 'text-red-400';
+        const cls = r.grade === 'correct'  ? 'border-green-500/50 bg-green-500/5'
+                  : r.grade === 'partial'  ? 'border-yellow-500/50 bg-yellow-500/5'
+                  :                          'border-red-500/50 bg-red-500/5';
+        const label = r.grade === 'correct' ? '✓'
+                    : r.grade === 'partial' ? '◐'
+                    :                         '✗';
+        const labelColor = r.grade === 'correct' ? 'text-green-400'
+                         : r.grade === 'partial' ? 'text-yellow-300'
+                         :                         'text-red-400';
         const typeBadge = r.type === 'followup'
           ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-300 border border-blue-500/30 ml-2 align-middle">Follow-up</span>'
           : '';

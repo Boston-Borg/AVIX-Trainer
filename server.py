@@ -377,24 +377,33 @@ def grade():
         f"This is a conversational oral exam, not a written test. Grade the "
         f"student's answer, then decide whether a follow-up question is warranted.\n\n"
 
-        f"=== GRADING PHILOSOPHY ===\n"
-        f"- Mark 'correct' as long as the student covered the CORE of the question. "
-        f"Be generous on details. If the gist is right, that's a pass.\n"
-        f"- Mark 'incorrect' only when the core understanding is wrong, the student "
-        f"contradicted a rule, or didn't actually address the question.\n"
-        f"- A student admitting 'I don't know' is incorrect.\n\n"
+        f"=== THE THREE VERDICTS ===\n"
+        f"- 'correct'   = the student covered EVERYTHING required for this "
+        f"difficulty. Nothing required is missing. next_question MUST be null. "
+        f"Feedback is a brief affirmation (one sentence or less — 'Good.', "
+        f"'Yes.', 'Solid.'). Do not lecture.\n"
+        f"- 'partial'   = the student covered the CORE concept but did NOT "
+        f"mention all of the required details for this difficulty. They are "
+        f"not wrong, just incomplete. next_question MUST be a focused follow-up "
+        f"targeting whichever specific required item(s) are missing. Feedback "
+        f"should be empty or null — the next_question alone communicates that "
+        f"more is needed. CRITICALLY: do NOT preface with acknowledgment like "
+        f"'Good, you covered the key elements — one clarification...' or 'You "
+        f"got most of it. However...'. That pattern is banned. Simply ask the "
+        f"focused follow-up question, and the student will perceive it as the "
+        f"DPE probing for the missing piece.\n"
+        f"- 'incorrect' = the student's core understanding is wrong, they "
+        f"contradicted a rule, or they didn't address the question. A student "
+        f"saying 'I don't know' is incorrect. Feedback explains the correct "
+        f"concept (1-3 sentences). next_question should be null — the DPE moves on.\n\n"
 
-        f"=== THE FOLLOW-UP RULE (READ CAREFULLY) ===\n"
-        f"ONLY generate a follow-up (next_question) when there is REQUIRED "
-        f"INFORMATION the student did not mention. If the student covered "
-        f"everything required for the current difficulty level, return null for "
-        f"next_question and let the topic conclude.\n\n"
-        f"Do NOT invent lateral or 'related' questions just to keep the "
-        f"conversation going. Do NOT ask judgment, opinion, or scenario-variation "
-        f"questions as follow-ups. Follow-ups exist solely to fill in missing "
-        f"information from the required list for this difficulty.\n\n"
-        f"Silence (null) is the correct move when nothing is missing. The harness "
-        f"will then move on to a new main question.\n\n"
+        f"=== KEY RULE FOR PARTIAL ===\n"
+        f"When required information is missing, you have ONE behavior: generate "
+        f"the focused follow-up question in next_question with verdict='partial', "
+        f"and leave feedback empty. The student sees ONLY the follow-up question. "
+        f"You do NOT acknowledge what they got right. You do NOT explain what they "
+        f"missed. You ask the question that probes the gap, and the student "
+        f"answers. This is the entire mechanism.\n\n"
 
         f"=== HOW MUCH IS 'REQUIRED' DEPENDS ON DIFFICULTY ===\n"
         f"The bar for 'required information' rises with difficulty. The same "
@@ -453,10 +462,10 @@ def grade():
 
         + "=== OUTPUT FORMAT ===\n"
         "Output ONLY a JSON object with these exact keys:\n"
-        '  {"verdict": "correct" | "incorrect",\n'
-        '   "score": <0-100>,\n'
-        '   "feedback": "<conversational, second person. For correct answers, a brief affirmation (1 sentence or less — \'good\', \'yes\', \'solid\'). For incorrect, 1-3 sentences correcting and teaching the key concept. Cite FAA sources where helpful but don\'t force it.>",\n'
-        '   "next_question": "<a focused follow-up that targets the SPECIFIC missing required information for this difficulty level. ONLY include a value here if required info is missing. If the student covered everything required at this difficulty level, return null (not a string). Never invent lateral, judgment, or scenario questions just to continue the conversation.>"}\n\n'
+        '  {"verdict": "correct" | "partial" | "incorrect",\n'
+        '   "score": <0-100; correct ~90-100, partial ~50-80, incorrect ~0-40>,\n'
+        '   "feedback": "<For correct: brief affirmation (1 sentence). For partial: empty string or null — the next_question itself is the response, do NOT acknowledge partial correctness. For incorrect: 1-3 sentences explaining the correct concept.>",\n'
+        '   "next_question": "<REQUIRED when verdict=\'partial\' — the focused follow-up that probes the specific missing required information. MUST be null when verdict=\'correct\' or verdict=\'incorrect\'. Never invent lateral, judgment, or scenario questions just to continue the conversation.>"}\n\n'
         "No commentary, no markdown fences."
     )
     user_prompt = (
