@@ -1136,15 +1136,71 @@ Style:
       }
     }
 
-    // Called by the buttons inside renderLengthPicker.
+    // Called by the buttons inside renderLengthPicker. Also handles the special
+    // 'remediation' topicId used by the post-oral review buttons — that path
+    // takes the topic *name* from `_remediationTopicLabel` instead of looking
+    // up the resourceTopics array.
     function startGeneration(apiKind, topicId, count) {
-      const t = resourceTopics.find(x => x.id === topicId);
-      if (!t) return;
+      let t;
+      if (topicId === 'remediation' && _remediationTopicLabel) {
+        t = { id: 'remediation', name: _remediationTopicLabel };
+      } else {
+        t = resourceTopics.find(x => x.id === topicId);
+        if (!t) return;
+      }
       const labelMap = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
       const bodyEl = document.getElementById('resource-detail-body');
       bodyEl.innerHTML = generatingStub(`${count} ${labelMap[apiKind]}`, t.name);
       lucide.createIcons();
       runGeneration(apiKind, t, bodyEl, apiKind === 'flashcards' ? 'flashcards' : 'quizzes', count);
+    }
+
+    // ---- DPE post-oral remediation -----------------------------------------
+    // After a DPE oral, the results screen offers 4 "review" links scoped to
+    // whichever topics the student got wrong. `_remediationTopics` is the list
+    // of topic names ("Airspace", "Weather", etc.) populated in finishTest.
+    // `_remediationTopicLabel` is the joined string passed to the generation API.
+    let _remediationTopics = [];
+    let _remediationTopicLabel = '';
+
+    function cfiReviewWeakTopics() {
+      if (!_remediationTopics.length) {
+        // Defensive fallback — the button shouldn't be visible without weak topics.
+        quickAsk("I just completed a DPE practice oral. What are common weak areas I should be sure to review before my checkride?");
+        return;
+      }
+      const list = _remediationTopics.length === 1
+        ? _remediationTopics[0]
+        : _remediationTopics.slice(0, -1).join(', ') + ', and ' + _remediationTopics[_remediationTopics.length - 1];
+      quickAsk(`I just took a DPE practice oral and answered questions incorrectly in the following topic areas: ${list}. Please walk me through each topic in detail, starting with the most safety-critical. Cite the relevant FAA references where helpful.`);
+    }
+
+    function remediateWithResource(apiKind) {
+      if (!_remediationTopics.length) return;
+      const topicLabel = _remediationTopics.join(', ');
+      _remediationTopicLabel = topicLabel;
+
+      // Clear any flashcard state from a previous resource session.
+      _fc = null;
+
+      // Open the resource detail modal.
+      const kindLabels = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      document.getElementById('resource-detail-kind').textContent = kindLabels[apiKind] + ' — Review';
+      document.getElementById('resource-detail-title').textContent = topicLabel;
+      document.getElementById('resource-detail').classList.remove('hidden');
+
+      const bodyEl = document.getElementById('resource-detail-body');
+      if (apiKind === 'study') {
+        // Study guide: one shot, no length choice.
+        bodyEl.innerHTML = generatingStub('Study guide', topicLabel);
+        lucide.createIcons();
+        runGeneration('study', { id: 'remediation', name: topicLabel }, bodyEl, 'study', 1);
+      } else {
+        // Flash cards / quiz: show the length picker, which will call back into
+        // startGeneration with topicId='remediation'.
+        bodyEl.innerHTML = renderLengthPicker(apiKind, topicLabel, 'remediation');
+        lucide.createIcons();
+      }
     }
 
     function runGeneration(apiKind, t, bodyEl, uiType, count) {
@@ -2056,6 +2112,12 @@ Style:
         byTopic[r.topic].points += gradeToScore(r.mainGrade);
       });
 
+      // Weak topics — anything where the student missed at least one question.
+      // Drives the 4 remediation buttons on the results screen.
+      _remediationTopics = [...new Set(
+        t.results.filter(r => r.mainGrade !== 'correct').map(r => r.topic)
+      )];
+
       state.progress.testHistory.push({ score: pct, timestamp: Date.now() });
       updateProgressUI();
 
@@ -2115,16 +2177,46 @@ Style:
             </div>
             <div>
               <h3 class="font-bold text-slate-100 mb-3">Next Steps</h3>
-              <p class="text-sm text-slate-400 mb-3">${passed
-                ? 'Solid work. Try a harder mode, or drill any topic that scored under 80%.'
-                : 'Drill topics that scored under 70% in CFI Chat or Study Guides, then take another oral.'}</p>
-              <div class="flex flex-wrap gap-2">
-                <button onclick="resetTest()" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center gap-2">
-                  <i data-lucide="rotate-cw" class="w-4 h-4"></i> Take Another Oral
-                </button>
-                <button onclick="goto('chat')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Open CFI Chat</button>
-                <button onclick="goto('study')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
-              </div>
+
+              <button onclick="resetTest()" class="block w-full px-4 py-3 mb-4 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center justify-center gap-2">
+                <i data-lucide="rotate-cw" class="w-4 h-4"></i> Take Another Oral
+              </button>
+
+              ${_remediationTopics.length > 0 ? `
+                <div class="border-t border-zinc-900 pt-4">
+                  <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Review the topics you missed</div>
+                  <div class="flex flex-wrap gap-1.5 mb-3">
+                    ${_remediationTopics.map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">${escapeHtml(t)}</span>`).join('')}
+                  </div>
+                  <div class="space-y-2">
+                    <button onclick="cfiReviewWeakTopics()" class="block w-full px-3 py-2.5 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-2 transition">
+                      <i data-lucide="message-circle" class="w-4 h-4 text-blue-400"></i> Review with CFI Chat
+                    </button>
+                    <div class="grid grid-cols-3 gap-2">
+                      <button onclick="remediateWithResource('study')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="book-open" class="w-4 h-4 text-blue-400"></i> Study Guide
+                      </button>
+                      <button onclick="remediateWithResource('flashcards')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="layers" class="w-4 h-4 text-blue-400"></i> Flash Cards
+                      </button>
+                      <button onclick="remediateWithResource('quiz')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="check-square" class="w-4 h-4 text-blue-400"></i> Quiz
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <div class="border-t border-zinc-900 pt-4">
+                  <div class="flex items-start gap-2 mb-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                    <div class="text-sm text-slate-300">Strong performance across all topics — no specific review needed. Try a harder difficulty next.</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button onclick="goto('chat')" class="px-3 py-2 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Open CFI Chat</button>
+                    <button onclick="goto('study')" class="px-3 py-2 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
+                  </div>
+                </div>
+              `}
             </div>
           </div>
           <div class="p-6 md:p-8 border-t border-zinc-900">
