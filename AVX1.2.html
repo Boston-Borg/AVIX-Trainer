@@ -21,6 +21,20 @@
       border-radius: 14px 14px 14px 2px;
       border: 1px solid #262629;
     }
+    /* Aviation-green bubble: shown when the DPE marks an answer correct. */
+    .chat-msg-correct {
+      background: rgba(34, 197, 94, 0.10);
+      color: #ecfdf5;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(34, 197, 94, 0.55);
+    }
+    /* Aviation-red bubble: shown when the DPE marks an answer wrong. */
+    .chat-msg-wrong {
+      background: rgba(239, 68, 68, 0.10);
+      color: #fef2f2;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(239, 68, 68, 0.55);
+    }
     .chat-msg-user {
       background: #2563eb;
       color: white;
@@ -73,7 +87,15 @@
   <span class="hidden bg-emerald-500/5 bg-amber-500/5 bg-rose-500/5
                text-emerald-400 text-amber-300 text-rose-400 text-blue-400
                border-emerald-500/40 border-amber-500/40 border-rose-500/40
-               bg-emerald-500 bg-amber-500 bg-rose-500"></span>
+               bg-emerald-500 bg-amber-500 bg-rose-500
+               bg-green-500/5 bg-green-500/10 bg-green-500/15
+               border-green-500/30 border-green-500/40 border-green-500/50 border-green-500/55
+               text-green-300 text-green-400
+               from-green-800 to-green-950
+               bg-red-500/5 bg-red-500/10 bg-red-500/15
+               border-red-500/30 border-red-500/40 border-red-500/50 border-red-500/55
+               text-red-300 text-red-400
+               from-red-800 to-red-950"></span>
 
   <!-- ============ TOP NAV ============ -->
   <nav class="bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
@@ -776,7 +798,18 @@
       const div = document.createElement('div');
       div.className = 'fade-in flex ' + (role === 'user' ? 'justify-end' : (role === 'system' ? 'justify-center' : 'justify-start'));
       const inner = document.createElement('div');
-      const cls = role === 'user' ? 'chat-msg-user' : (role === 'system' ? 'chat-msg-system' : 'chat-msg-bot');
+      // Roles understood by addMsg:
+      //   'user'        — user message bubble (blue, right-aligned)
+      //   'bot'         — default bot bubble (dark, left-aligned)
+      //   'bot-correct' — DPE feedback when verdict = correct (aviation green)
+      //   'bot-wrong'   — DPE feedback when verdict = wrong  (aviation red)
+      //   'system'      — small dashed status line (centered)
+      let cls;
+      if (role === 'user') cls = 'chat-msg-user';
+      else if (role === 'system') cls = 'chat-msg-system';
+      else if (role === 'bot-correct') cls = 'chat-msg-correct';
+      else if (role === 'bot-wrong') cls = 'chat-msg-wrong';
+      else cls = 'chat-msg-bot';
       inner.className = cls + ' max-w-[85%] px-4 py-3 text-sm shadow-sm';
       inner.innerHTML = html;
       div.appendChild(inner);
@@ -1997,34 +2030,33 @@ Style:
       const grading = await gradeAnswerAI(text, gradeable, t.mode);
       clearTyping('dpe-messages');
 
-      // Reaction: just the AI's natural feedback. Brief affirmation for correct,
-      // brief correction + the curator's reference for wrong. No "you got partial
-      // credit" middle ground anymore — it's a clean conversational beat.
+      // Reaction: AI feedback rendered in an aviation-green bubble for correct
+      // verdicts, aviation-red for wrong. Wrong answers also get the curator's
+      // reference appended when available.
       const fbHtml = grading.feedback ? formatClaudeReply(grading.feedback) : '';
-      let reaction = fbHtml;
-      if (grading.result === 'wrong') {
+      let reaction;
+      if (grading.result === 'correct') {
+        reaction = fbHtml || `<strong>Correct.</strong>`;
+      } else {
         const refLine = gradeable.ideal
           ? `<br><br><em class="text-slate-400 not-italic">Reference:</em> ${gradeable.ideal}`
           : '';
-        reaction = (fbHtml || `<strong class="text-rose-300">${cfg.wrongTone}</strong>`) + refLine;
+        reaction = (fbHtml || `<strong>${cfg.wrongTone}</strong>`) + refLine;
       }
-      if (reaction) addMsg('dpe-messages','bot', reaction);
+      const reactionRole = grading.result === 'correct' ? 'bot-correct' : 'bot-wrong';
+      addMsg('dpe-messages', reactionRole, reaction);
 
-      // Track result for the MAIN question only. Follow-ups are bonus turns that
-      // don't change the main grade (the main was already marked correct/wrong).
-      if (!isFollowup) {
-        t.results.push({
-          topic: q.topic,
-          mainGrade: grading.result,
-          followupGrades: [],
-          q: q.q,
-          userAnswer: text,
-          ideal: q.ideal,
-        });
-      } else {
-        const lastResult = t.results[t.results.length - 1];
-        lastResult.followupGrades.push(grading.result);
-      }
+      // Track each answered turn (main OR follow-up) as its own result entry.
+      // Score, weak-topic detection, and the post-oral review screen all consume
+      // this flat list so follow-ups count individually toward the total.
+      t.results.push({
+        type: isFollowup ? 'followup' : 'main',
+        topic: (isFollowup && t.currentFollowup && t.currentFollowup.topic) || q.topic,
+        q: gradeable.q,
+        userAnswer: text,
+        grade: grading.result,
+        ideal: gradeable.ideal || '',
+      });
 
       // Decide next step. The AI may have generated a follow-up question — either
       // a detail probe, a scenario variation, a judgment test, or (in Intermediate)
@@ -2099,23 +2131,24 @@ Style:
         t.results = [];
       }
 
+      // Every answered turn (main + follow-ups) counts as its own question.
       const total = Math.max(t.results.length, 1);
-      const points = t.results.reduce((s, r) => s + gradeToScore(r.mainGrade), 0);
+      const points = t.results.reduce((s, r) => s + gradeToScore(r.grade), 0);
       const pct = t.results.length === 0 ? 0 : Math.round(points / total * 100);
       const passed = t.results.length > 0 && pct >= t.cfg.passScore;
 
-      // Topic breakdown
+      // Topic breakdown — every result (main + follow-up) counts in its topic.
       const byTopic = {};
       t.results.forEach(r => {
         if (!byTopic[r.topic]) byTopic[r.topic] = { points: 0, total: 0 };
         byTopic[r.topic].total++;
-        byTopic[r.topic].points += gradeToScore(r.mainGrade);
+        byTopic[r.topic].points += gradeToScore(r.grade);
       });
 
-      // Weak topics — anything where the student missed at least one question.
-      // Drives the 4 remediation buttons on the results screen.
+      // Weak topics — anything where the student missed at least one question
+      // (main OR follow-up). Drives the 4 remediation buttons on the results screen.
       _remediationTopics = [...new Set(
-        t.results.filter(r => r.mainGrade !== 'correct').map(r => r.topic)
+        t.results.filter(r => r.grade !== 'correct').map(r => r.topic)
       )];
 
       state.progress.testHistory.push({ score: pct, timestamp: Date.now() });
@@ -2128,21 +2161,27 @@ Style:
         : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> That's the purpose of a practice oral — to identify weak areas before the checkride. Review the topic breakdown below, study the areas that scored lowest in CFI Chat or the Resources tab, then take another oral.`;
       setTimeout(() => addMsg('dpe-messages','bot', closer), 400);
 
-      // Results panel below the chat
+      // Review list: every answered turn (main + follow-ups) shown individually.
+      // Sequential numbering within each topic block keeps the order intuitive
+      // (main question first, then its follow-ups). The "Follow-up" tag flags
+      // probe questions so the reader knows they're a different category.
       const reviewHtml = t.results.map((r, i) => {
-        const cls = r.mainGrade === 'correct'
-          ? 'border-emerald-500/40 bg-emerald-500/5'
-          : 'border-rose-500/40 bg-rose-500/5';
-        const label = r.mainGrade === 'correct' ? '✓' : '✗';
-        const labelColor = r.mainGrade === 'correct' ? 'text-emerald-400' : 'text-rose-400';
+        const cls = r.grade === 'correct'
+          ? 'border-green-500/50 bg-green-500/5'
+          : 'border-red-500/50 bg-red-500/5';
+        const label = r.grade === 'correct' ? '✓' : '✗';
+        const labelColor = r.grade === 'correct' ? 'text-green-400' : 'text-red-400';
+        const typeBadge = r.type === 'followup'
+          ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-300 border border-blue-500/30 ml-2 align-middle">Follow-up</span>'
+          : '';
         return `
           <div class="border ${cls} rounded-lg p-4 mb-3">
             <div class="flex items-start justify-between gap-3 mb-2">
-              <div class="text-sm font-semibold text-slate-100">Q${i+1}. ${escapeHtml(r.q)}</div>
+              <div class="text-sm font-semibold text-slate-100">Q${i+1}. ${escapeHtml(r.q)}${typeBadge}</div>
               <span class="${labelColor} font-bold text-lg whitespace-nowrap">${label} <span class="text-xs uppercase tracking-wider">${r.topic}</span></span>
             </div>
             <div class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">You said:</strong> ${escapeHtml(r.userAnswer)}</div>
-            <div class="text-xs text-slate-300"><strong class="text-slate-100">Ideal answer:</strong> ${r.ideal}</div>
+            ${r.ideal ? `<div class="text-xs text-slate-300"><strong class="text-slate-100">Reference:</strong> ${r.ideal}</div>` : ''}
           </div>`;
       }).join('');
 
@@ -2165,7 +2204,7 @@ Style:
       r.classList.remove('hidden');
       r.innerHTML = `
         <div class="mt-8 bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden">
-          <div class="p-6 md:p-8 ${passed ? 'bg-gradient-to-br from-emerald-800 to-emerald-950' : 'bg-gradient-to-br from-rose-800 to-rose-950'} text-white">
+          <div class="p-6 md:p-8 ${passed ? 'bg-gradient-to-br from-green-800 to-green-950' : 'bg-gradient-to-br from-red-800 to-red-950'} text-white">
             <div class="text-sm uppercase tracking-wider opacity-80 mb-1">${t.cfg.label} Oral • ${passed ? 'Passed' : 'Did not pass'}</div>
             <div class="text-5xl font-bold mb-1">${pct}%</div>
             <div class="text-sm opacity-90">Pass mark ${t.cfg.passScore}% • ${t.results.length} question${t.results.length === 1 ? '' : 's'} answered</div>
