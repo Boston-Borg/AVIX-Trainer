@@ -103,6 +103,24 @@ def _stripe_configured() -> bool:
     """True when we have enough Stripe config to actually charge for things."""
     return bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
 
+
+# --- Owner allowlist -------------------------------------------------------
+# Emails listed here get unlimited free access (paywall bypassed). Used for
+# project owners / co-founders. Comma-separated in the env var. Whitespace
+# is trimmed and case is ignored at comparison time.
+OWNER_EMAILS = {
+    email.strip().lower()
+    for email in (os.environ.get("OWNER_EMAILS") or "").split(",")
+    if email.strip()
+}
+
+
+def is_owner(email) -> bool:
+    """True if the user's email is in OWNER_EMAILS (case-insensitive)."""
+    if not email:
+        return False
+    return str(email).strip().lower() in OWNER_EMAILS
+
 # --- Flask app --------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent
 HTML_FILE = "AVX1.2.html"  # the page you already have
@@ -289,14 +307,17 @@ def me():
     The frontend uses this on page load to decide between three screens:
       - logged-out  → show login
       - logged-in, no sub → show paywall
-      - logged-in, active sub → show app"""
-    sub_status = (
-        get_subscription_status(request.user.id)
-        if _stripe_configured()
-        else {"active": True, "status": "stripe_not_configured"}
-    )
+      - logged-in, active sub → show app
+      - logged-in, owner → show app (paywall bypassed)"""
+    user = request.user
+    if is_owner(user.email):
+        sub_status = {"active": True, "status": "owner"}
+    elif _stripe_configured():
+        sub_status = get_subscription_status(user.id)
+    else:
+        sub_status = {"active": True, "status": "stripe_not_configured"}
     return jsonify(
-        user=_user_payload(request.user),
+        user=_user_payload(user),
         subscription=sub_status,
         stripe_publishable_key=STRIPE_PUBLISHABLE_KEY or "",
     )
@@ -351,6 +372,9 @@ def require_subscription(f):
         user = getattr(request, "user", None)
         if user is None:
             return jsonify(error="Unauthenticated."), 401
+        # Owners (founders / co-founders listed in OWNER_EMAILS) bypass paywall.
+        if is_owner(user.email):
+            return f(*args, **kwargs)
         status = get_subscription_status(user.id)
         if not status.get("active"):
             return (
