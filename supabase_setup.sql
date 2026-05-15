@@ -69,6 +69,26 @@ create policy "users insert own quiz results"
 
 
 -- ---------------------------------------------------------------------
+-- 3a. TRIAL USAGE — one row per free-trial user, tracks usage of each feature.
+--     Owners and active subscribers ignore this entirely.
+-- ---------------------------------------------------------------------
+create table if not exists public.trial_usage (
+  user_id          uuid primary key references auth.users(id) on delete cascade,
+  chat_first_at    timestamptz,             -- timestamp of first CFI chat message
+  generate_count   integer not null default 0,  -- count of /api/generate calls
+  oral_first_at    timestamptz,             -- timestamp of first /api/grade call
+  updated_at       timestamptz default now()
+);
+
+alter table public.trial_usage enable row level security;
+
+drop policy if exists "users read own trial" on public.trial_usage;
+create policy "users read own trial"
+  on public.trial_usage for select
+  using (user_id = auth.uid());
+
+
+-- ---------------------------------------------------------------------
 -- 3. ORAL EXAM RESULTS — every DPE oral session.
 -- ---------------------------------------------------------------------
 create table if not exists public.oral_exam_results (

@@ -121,6 +121,152 @@ def is_owner(email) -> bool:
         return False
     return str(email).strip().lower() in OWNER_EMAILS
 
+
+# --- Free trial limits -----------------------------------------------------
+# Non-subscribers get a one-shot taste of each feature so they can see what
+# they'd be paying for. State lives in the trial_usage table.
+TRIAL_CHAT_WINDOW_MINUTES = 5
+TRIAL_ORAL_WINDOW_MINUTES = 30
+TRIAL_GENERATE_LIMIT       = 1
+
+
+def _parse_iso(s):
+    """Parse a Supabase timestamptz string ('2026-05-15T...+00:00' or '...Z')."""
+    if not s:
+        return None
+    try:
+        s = s.replace("Z", "+00:00") if s.endswith("Z") else s
+        return datetime.fromisoformat(s)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _read_trial_row(user_id):
+    """Fetch the trial_usage row for a user. Returns dict or None."""
+    if supabase_admin is None:
+        return None
+    try:
+        res = (
+            supabase_admin.table("trial_usage")
+            .select("*")
+            .eq("user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+        return (res.data or [None])[0]
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to read trial_usage row")
+        return None
+
+
+def _upsert_trial(user_id, **fields):
+    """Upsert the user's trial_usage row with the given fields."""
+    if supabase_admin is None:
+        return
+    payload = {
+        "user_id": str(user_id),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        **fields,
+    }
+    try:
+        supabase_admin.table("trial_usage").upsert(
+            payload, on_conflict="user_id"
+        ).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to upsert trial_usage row")
+
+
+def get_trial_status(user_id) -> dict:
+    """Snapshot of the user's trial state — used by /api/me so the frontend
+    can show "5 minutes left" / "1 quiz left" etc."""
+    row = _read_trial_row(user_id) or {}
+    now = datetime.utcnow().replace(tzinfo=None)
+
+    # Chat: window starts when they sent their first message.
+    chat_first = _parse_iso(row.get("chat_first_at"))
+    if chat_first is None:
+        chat = {"used": False, "seconds_remaining": TRIAL_CHAT_WINDOW_MINUTES * 60}
+    else:
+        elapsed = (now - chat_first.replace(tzinfo=None)).total_seconds()
+        remaining = max(0, TRIAL_CHAT_WINDOW_MINUTES * 60 - elapsed)
+        chat = {
+            "used": True,
+            "seconds_remaining": int(remaining),
+            "expired": remaining <= 0,
+        }
+
+    # Generate (study guide/flashcards/quiz): count-based.
+    generate_count = int(row.get("generate_count") or 0)
+    generate = {
+        "used": generate_count,
+        "remaining": max(0, TRIAL_GENERATE_LIMIT - generate_count),
+        "expired": generate_count >= TRIAL_GENERATE_LIMIT,
+    }
+
+    # Oral exam: window from first graded answer.
+    oral_first = _parse_iso(row.get("oral_first_at"))
+    if oral_first is None:
+        oral = {"used": False, "seconds_remaining": TRIAL_ORAL_WINDOW_MINUTES * 60}
+    else:
+        elapsed = (now - oral_first.replace(tzinfo=None)).total_seconds()
+        remaining = max(0, TRIAL_ORAL_WINDOW_MINUTES * 60 - elapsed)
+        oral = {
+            "used": True,
+            "seconds_remaining": int(remaining),
+            "expired": remaining <= 0,
+        }
+
+    any_available = (
+        not chat.get("expired", False)
+        or not generate.get("expired", False)
+        or not oral.get("expired", False)
+    )
+    return {
+        "chat": chat,
+        "generate": generate,
+        "oral": oral,
+        "any_available": any_available,
+    }
+
+
+def _check_trial_usage(user_id, feature: str) -> bool:
+    """Check if the user can use `feature` under their trial allowance, and
+    record usage if so. Returns True (allow) or False (deny / paywall)."""
+    if supabase_admin is None:
+        # Without admin client we can't track trial state. Fail closed so we
+        # never give unintended free access in production.
+        return False
+
+    row = _read_trial_row(user_id) or {}
+    now = datetime.utcnow()
+    now_iso = now.isoformat() + "Z"
+
+    if feature == "chat":
+        first = _parse_iso(row.get("chat_first_at"))
+        if first is None:
+            _upsert_trial(user_id, chat_first_at=now_iso)
+            return True
+        elapsed = (now - first.replace(tzinfo=None)).total_seconds()
+        return elapsed < TRIAL_CHAT_WINDOW_MINUTES * 60
+
+    if feature == "generate":
+        count = int(row.get("generate_count") or 0)
+        if count < TRIAL_GENERATE_LIMIT:
+            _upsert_trial(user_id, generate_count=count + 1)
+            return True
+        return False
+
+    if feature == "grade":
+        first = _parse_iso(row.get("oral_first_at"))
+        if first is None:
+            _upsert_trial(user_id, oral_first_at=now_iso)
+            return True
+        elapsed = (now - first.replace(tzinfo=None)).total_seconds()
+        return elapsed < TRIAL_ORAL_WINDOW_MINUTES * 60
+
+    # Unknown feature — deny.
+    return False
+
 # --- Flask app --------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent
 HTML_FILE = "AVX1.2.html"  # the page you already have
@@ -312,13 +458,20 @@ def me():
     user = request.user
     if is_owner(user.email):
         sub_status = {"active": True, "status": "owner"}
+        trial_status = None  # owners don't need a trial
     elif _stripe_configured():
         sub_status = get_subscription_status(user.id)
+        # Only fetch trial status if the user isn't a paid subscriber.
+        trial_status = (
+            None if sub_status.get("active") else get_trial_status(user.id)
+        )
     else:
         sub_status = {"active": True, "status": "stripe_not_configured"}
+        trial_status = None
     return jsonify(
         user=_user_payload(user),
         subscription=sub_status,
+        trial=trial_status,
         stripe_publishable_key=STRIPE_PUBLISHABLE_KEY or "",
     )
 
@@ -384,6 +537,55 @@ def require_subscription(f):
         return f(*args, **kwargs)
 
     return wrapper
+
+
+def require_paid_access(feature: str):
+    """Decorator factory: gate the route by owner-bypass, active subscription,
+    OR a remaining trial allowance for the named feature.
+
+    Args:
+        feature: one of 'chat', 'generate', 'grade'.
+
+    Must be stacked below @require_auth.
+
+    Order of checks:
+        1. Stripe not configured → allow (dev mode).
+        2. Owner email           → allow.
+        3. Active subscription   → allow.
+        4. Trial allowance       → allow + record usage.
+        5. Otherwise             → 402 Payment Required.
+    """
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if not _stripe_configured():
+                return f(*args, **kwargs)
+            user = getattr(request, "user", None)
+            if user is None:
+                return jsonify(error="Unauthenticated."), 401
+            if is_owner(user.email):
+                return f(*args, **kwargs)
+            sub = get_subscription_status(user.id)
+            if sub.get("active"):
+                return f(*args, **kwargs)
+            if _check_trial_usage(user.id, feature):
+                return f(*args, **kwargs)
+            return (
+                jsonify(
+                    error=(
+                        "Your free trial for this feature is used up. "
+                        "Subscribe to continue."
+                    ),
+                    feature=feature,
+                    subscription=sub,
+                    trial=get_trial_status(user.id),
+                ),
+                402,  # Payment Required
+            )
+
+        return wrapper
+
+    return decorator
 
 
 # --- Stripe endpoints ------------------------------------------------------
@@ -654,7 +856,7 @@ FAA EXCERPTS:
 
 @app.route("/api/chat", methods=["POST"])
 @require_auth
-@require_subscription
+@require_paid_access("chat")
 def chat():
     """
     Forward a chat request to Claude, with RAG context inserted.
@@ -804,7 +1006,7 @@ _MAX_COUNT = {"study": 1, "flashcards": 50, "quiz": 50}
 
 @app.route("/api/generate", methods=["POST"])
 @require_auth
-@require_subscription
+@require_paid_access("generate")
 def generate():
     """Generate a study guide, flash cards, or quiz for one PPL topic."""
     if client is None:
@@ -906,7 +1108,7 @@ def generate():
 
 @app.route("/api/grade", methods=["POST"])
 @require_auth
-@require_subscription
+@require_paid_access("grade")
 def grade():
     """Grade a DPE oral answer."""
     if client is None:

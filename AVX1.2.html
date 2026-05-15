@@ -272,6 +272,27 @@
     </div>
   </nav>
 
+  <!-- ============ TRIAL BANNER (shown when user is on a free trial) ============ -->
+  <!-- Sits between the nav and the main content. JS toggles its visibility
+       and fills in the per-feature remaining counters from /api/me. -->
+  <div id="trial-banner" class="hidden bg-amber-500/10 border-b border-amber-500/30 text-amber-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-3 text-sm">
+      <div class="flex items-center gap-2">
+        <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
+        <span>
+          <strong class="text-amber-100">Free trial</strong> —
+          <span id="trial-chat-remaining"  >5 min of CFI Chat</span>,
+          <span id="trial-gen-remaining"   >1 study/quiz set</span>,
+          <span id="trial-oral-remaining"  >1 oral exam</span>
+        </span>
+      </div>
+      <button id="trial-subscribe-btn" type="button"
+              class="bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium text-xs px-3 py-1.5 rounded-md transition">
+        Subscribe — $20/mo
+      </button>
+    </div>
+  </div>
+
   <main class="hidden flex-1">
 
     <!-- ============ HOME ============ -->
@@ -605,7 +626,9 @@
 
     // Drop-in replacement for fetch() that:
     //   - attaches the Bearer token automatically
-    //   - kicks the user back to the login screen on 401 (expired token)
+    //   - on 401 (expired token) kicks the user back to the login screen
+    //   - on 402 (trial used up / no subscription) shows the paywall AFTER the
+    //     caller has surfaced its own error UI
     async function apiFetch(url, options = {}) {
       const token = getAuthToken();
       const headers = { ...(options.headers || {}) };
@@ -616,6 +639,29 @@
         showAuthScreen();
         throw new Error('Your session expired. Please log in again.');
       }
+      if (res.status === 402) {
+        // Trial used up for this feature OR no active subscription.
+        // We still return the response so the caller can show its local error,
+        // but we also fire-and-forget refresh /api/me so the banner/paywall
+        // catches up shortly. (The caller usually shows an inline error and
+        // the user can click Subscribe from the banner.)
+        try {
+          const data = await res.clone().json();
+          // Re-render the screen after a moment so the global state matches.
+          setTimeout(async () => {
+            const me = await fetchMe();
+            routeToScreen(me);
+          }, 50);
+          const err = new Error(data.error || 'Subscription required.');
+          err.status = 402;
+          err.feature = data.feature;
+          err.trial = data.trial;
+          throw err;
+        } catch (e) {
+          if (e?.status === 402) throw e;
+          // Otherwise fall through and return res for caller to handle.
+        }
+      }
       return res;
     }
 
@@ -625,6 +671,7 @@
     function _hideAllScreens() {
       document.getElementById('auth-screen').classList.add('hidden');
       document.getElementById('paywall-screen').classList.add('hidden');
+      document.getElementById('trial-banner').classList.add('hidden');
       document.querySelector('nav').classList.add('hidden');
       document.querySelector('main').classList.add('hidden');
     }
@@ -644,17 +691,57 @@
           note += ' Your last payment failed — please update your card to continue.';
         } else if (subscription?.status === 'canceled') {
           note += ' Your subscription was canceled. Resubscribe to regain access.';
+        } else if (subscription?.status === 'trial_used') {
+          note += ' Your free trial is used up — subscribe for unlimited access.';
         }
         greeting.innerHTML = note;
       }
     }
-    function showAppShell(user) {
+    function showAppShell(user, subscription, trial) {
       _hideAllScreens();
       document.querySelector('nav').classList.remove('hidden');
       document.querySelector('main').classList.remove('hidden');
       window.currentUser = user;
+      window.currentTrial = trial;
       const profileBtn = document.getElementById('profile-btn');
       if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
+      // Trial banner: only visible if user is on a trial (no active sub but
+      // still has at least one feature available). Owners get null trial.
+      if (trial && !subscription?.active) {
+        document.getElementById('trial-banner').classList.remove('hidden');
+        updateTrialBannerCounters(trial);
+      }
+    }
+
+    // Format the per-feature counters inside the trial banner from /api/me data.
+    function updateTrialBannerCounters(trial) {
+      const fmtSeconds = (s) => {
+        if (s <= 0) return 'expired';
+        const m = Math.floor(s / 60);
+        return m >= 1 ? `${m} min remaining` : `<1 min remaining`;
+      };
+      const chatEl = document.getElementById('trial-chat-remaining');
+      const genEl  = document.getElementById('trial-gen-remaining');
+      const oralEl = document.getElementById('trial-oral-remaining');
+      if (chatEl) {
+        chatEl.textContent = trial.chat?.expired
+          ? 'CFI Chat used'
+          : (trial.chat?.used
+              ? `CFI Chat: ${fmtSeconds(trial.chat.seconds_remaining)}`
+              : '5 min CFI Chat available');
+      }
+      if (genEl) {
+        genEl.textContent = trial.generate?.expired
+          ? 'Quizzes/study used'
+          : `${trial.generate?.remaining ?? 1} study/quiz set available`;
+      }
+      if (oralEl) {
+        oralEl.textContent = trial.oral?.expired
+          ? 'Oral exam used'
+          : (trial.oral?.used
+              ? `Oral exam: ${fmtSeconds(trial.oral.seconds_remaining)}`
+              : '1 oral exam available');
+      }
     }
 
     // Fetch /api/me with the saved token. Returns the full payload
@@ -672,13 +759,21 @@
     }
 
     // Given a /api/me response (or null), decide which screen to render.
-    // Returns the response so callers can branch further if they want.
+    // Three branches:
+    //   - active subscription → full app, no banner
+    //   - no sub but trial has any feature available → app + trial banner
+    //   - no sub and trial exhausted → paywall
     function routeToScreen(me) {
       if (!me) { showAuthScreen(); return null; }
       if (me.subscription?.active) {
-        showAppShell(me.user);
+        showAppShell(me.user, me.subscription, null);
+      } else if (me.trial?.any_available) {
+        showAppShell(me.user, me.subscription, me.trial);
       } else {
-        showPaywallScreen(me.user, me.subscription);
+        // Trial exhausted (or never started + no sub): show paywall.
+        const sub = me.subscription || {};
+        if (me.trial && !me.trial.any_available) sub.status = 'trial_used';
+        showPaywallScreen(me.user, sub);
       }
       return me;
     }
@@ -880,6 +975,9 @@
         ?.addEventListener('click', handleSubscribeClick);
       document.getElementById('paywall-signout')
         ?.addEventListener('click', handleLogout);
+      // Trial banner's Subscribe button — same action as the paywall's.
+      document.getElementById('trial-subscribe-btn')
+        ?.addEventListener('click', handleSubscribeClick);
     }
 
     // Reads ?checkout=... from the URL after Stripe redirects back. If the
