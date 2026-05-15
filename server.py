@@ -802,16 +802,26 @@ def generate():
         except Exception:  # noqa: BLE001
             log.exception("Retrieval failed in /api/generate; continuing without context")
 
+    # Shared tone guideline for all generated study material.
+    tone_rules = (
+        "Tone: semi-formal, professional instructor voice. Avoid colloquialisms "
+        "and casual idioms (e.g., 'bite you', 'gonna', 'crush it', 'ace it', "
+        "'sweat it', 'tricky bits', 'gotcha'). Write the way a CFI would write "
+        "a printed study handout — clear, precise, professional."
+    )
+
     system_prompt = (
         "You are an expert CFI creating accurate PPL study material for a student "
         "preparing for the checkride. Use the FAA excerpts below as your source of "
         "truth — do not invent regulations or page numbers.\n\n"
+        f"{tone_rules}\n\n"
         f"FAA EXCERPTS:\n{context_block}"
         if context_block
         else
         "You are an expert CFI creating accurate PPL study material for a student. "
         "(No FAA excerpts available — use general aviation knowledge and flag any "
-        "uncertain claims.)"
+        "uncertain claims.)\n\n"
+        f"{tone_rules}"
     )
     user_prompt = _PROMPTS[kind].format(topic=topic, count=count)
 
@@ -869,11 +879,11 @@ def grade():
     data = request.get_json(silent=True) or {}
     question = (data.get("question") or "").strip()
     answer = (data.get("answer") or "").strip()
-    ideal = (data.get("ideal") or "").strip()
+    ideal = (data.get("ideal") or "").strip()  # optional now
     difficulty = (data.get("difficulty") or "checkride").strip()  # beginner/intermediate/checkride
 
-    if not question or not answer or not ideal:
-        return jsonify(error="`question`, `answer`, and `ideal` are required."), 400
+    if not question or not answer:
+        return jsonify(error="`question` and `answer` are required."), 400
 
     # Pull RAG context to ground the feedback in real FAA sources.
     context_block = ""
@@ -886,25 +896,162 @@ def grade():
             log.exception("Retrieval failed in /api/grade")
 
     system_prompt = (
-        f"You are a Designated Pilot Examiner (DPE) grading a student's verbal "
-        f"answer in a {difficulty}-level practice oral. You have the question, "
-        f"the student's answer, and the curator's ideal answer.\n\n"
-        f"Tone:\n"
-        f"- beginner: encouraging coach, generous on partial credit\n"
-        f"- intermediate: balanced examiner, fair but precise\n"
-        f"- checkride: rigorous DPE, holds the line on safety-critical items\n\n"
-        + (f"FAA EXCERPTS for ground truth:\n{context_block}\n\n" if context_block else "")
-        + "Output ONLY a JSON object with these exact keys:\n"
+        f"You are a Designated Pilot Examiner (DPE) running a {difficulty}-level "
+        f"practice oral with a student preparing for the Private Pilot checkride. "
+        f"This is a conversational oral exam, not a written test. Grade the "
+        f"student's answer, then decide whether a follow-up question is warranted.\n\n"
+
+        f"=== THE THREE VERDICTS (READ CAREFULLY) ===\n"
+
+        f"Be generous. The student is in a conversational oral, not a written exam. "
+        f"Different phrasing, paraphrasing, and informal wording that means the "
+        f"same thing as the reference answer all count as covered. Do not nitpick "
+        f"on word choice. If you are torn between two verdicts, pick the more "
+        f"generous one.\n\n"
+
+        f"- 'correct'   = the student covered essentially all of the required "
+        f"information for this difficulty and reached the right conclusion. "
+        f"Minor phrasing differences are fine. Synonyms count. next_question "
+        f"MUST be null. Feedback is a brief one-sentence affirmation ('Good.', "
+        f"'Yes.', 'Solid.'). Do not lecture.\n"
+
+        f"- 'partial'   = the student covered the BASE / CORE of the question "
+        f"correctly AND roughly 70% or more of the required information for this "
+        f"difficulty — but some specific required item(s) are missing. They are "
+        f"NOT wrong; they are incomplete. next_question MUST be a focused "
+        f"follow-up targeting the specific missing item(s). Feedback is empty "
+        f"or null — the next_question alone is the response. CRITICALLY: do "
+        f"NOT preface with acknowledgment ('Good, you covered the key elements "
+        f"— one clarification...', 'You got most of it. However...', 'Let me "
+        f"correct that.'). That pattern is banned. Simply ask the focused "
+        f"follow-up that probes the gap.\n"
+
+        f"- 'incorrect' = reserved for genuine failures. Use ONLY when one of "
+        f"these is true:\n"
+        f"     (a) the student stated something that contradicts an FAA rule "
+        f"(e.g., 'VFR fuel reserve at night is 30 minutes'),\n"
+        f"     (b) the student fundamentally misunderstood the question (e.g., "
+        f"answering about IFR weather minimums when asked about VFR),\n"
+        f"     (c) the student said 'I don't know', 'skip', or refused to "
+        f"engage,\n"
+        f"     (d) the student covered LESS than roughly 50% of the required "
+        f"information AND the core/base of the question is also missing.\n"
+        f"   For 'incorrect', feedback explains the correct concept in 1-3 "
+        f"sentences. next_question should be null — the DPE moves on.\n\n"
+
+        f"If you're uncertain whether to mark partial or incorrect, pick "
+        f"partial. The base of the answer being there earns the student "
+        f"partial credit and a follow-up, not a red mark.\n\n"
+
+        f"=== KEY RULE FOR PARTIAL ===\n"
+        f"When the verdict is 'partial', you have ONE behavior: put the focused "
+        f"follow-up question into next_question, leave feedback empty. The "
+        f"student sees ONLY the follow-up. You do NOT acknowledge what they "
+        f"got right. You do NOT preview what they missed. You ask the question "
+        f"that probes the gap. Period.\n\n"
+
+        f"=== GENEROSITY SCALES WITH DIFFICULTY ===\n"
+        f"- Beginner: maximum generosity. The base answer earns correct even "
+        f"  if some named elements are skipped. Partial only when the student "
+        f"  clearly missed something a private pilot must know.\n"
+        f"- Intermediate: balanced. The base + most key conditions earns "
+        f"  correct; partial when meaningful required details are missing.\n"
+        f"- Checkride/Advanced: stricter but still partial-first. Correct "
+        f"  requires comprehensive coverage including alternative paths and "
+        f"  edge cases; anything short of that is partial.\n\n"
+
+        f"=== CALIBRATION EXAMPLE (use this to anchor your scoring) ===\n"
+        f"Question: 'You pull up this METAR. Tell me what you see and whether "
+        f"you'd launch.'\n"
+        f"METAR: 'KXYZ 121856Z 12015G25KT 3SM BR BKN008 OVC020 22/21 A2992'\n\n"
+        f"Sample student answer: 'Airport ident, time, winds 121 at 15 gusting "
+        f"to 25 kts, 3sm visibility, skies broken at 800 feet, overcast 2k, "
+        f"temp 22 dewpoint 21, altimeter 2992. I would not fly as these are "
+        f"IFR conditions with very high winds and mist.'\n\n"
+        f"How this should be graded:\n"
+        f"  • At BEGINNER: verdict = 'correct'. The student decoded every "
+        f"    field and made the right go/no-go call. Feedback: 'Good.' "
+        f"    next_question: null.\n"
+        f"  • At INTERMEDIATE: verdict = 'partial'. The base is right; "
+        f"    missing is explicit reasoning about the 1°C temp/dew-point "
+        f"    spread and the fog risk that creates. next_question = a "
+        f"    targeted follow-up like 'What's that 1-degree spread telling "
+        f"    you about the next hour?'. Feedback: empty.\n"
+        f"  • At CHECKRIDE: verdict = 'partial'. Missing is the spread "
+        f"    analysis, gust factor consideration, and alternate planning. "
+        f"    next_question = a stacked follow-up like 'With that 1° spread, "
+        f"    what would you expect in the next hour, and how does that "
+        f"    affect your alternate selection?'. Feedback: empty.\n\n"
+        f"This answer must NEVER be graded 'incorrect'. The student is "
+        f"substantively right.\n\n"
+
+        f"=== HOW MUCH IS 'REQUIRED' DEPENDS ON DIFFICULTY ===\n"
+        f"The bar for 'required information' rises with difficulty. The same "
+        f"question produces different follow-up behavior at different levels.\n\n"
+
+        f"** BEGINNER **\n"
+        f"Required = the headline / big-picture answer only. Major rule items, "
+        f"not specific edge cases.\n"
+        f"Example — Q: 'What are the currency requirements to carry passengers?'\n"
+        f"  Required at Beginner: (1) flight review every 24 calendar months, "
+        f"AND (2) 3 takeoffs and landings in the preceding 90 days.\n"
+        f"  If the student mentioned BOTH → next_question: null.\n"
+        f"  If they mentioned only one → ask about the missing one in one short, "
+        f"friendly sentence.\n\n"
+
+        f"** INTERMEDIATE **\n"
+        f"Required = all the Beginner-level items PLUS the more specific "
+        f"variations and conditions that apply in everyday flying.\n"
+        f"Example — same currency question:\n"
+        f"  Required at Intermediate: Beginner items + the night-currency rule "
+        f"(3 takeoffs/landings to a FULL STOP, between 1 hr after sunset and "
+        f"1 hr before sunrise) + the tailwheel rule (all landings to a full stop).\n"
+        f"  If any of these are missing → ask a focused probe targeting the gap.\n"
+        f"  If all are covered → next_question: null.\n\n"
+
+        f"** ADVANCED / CHECKRIDE **\n"
+        f"Required = all the Intermediate-level items PLUS deeper specifics, "
+        f"alternative compliance paths, and edge cases.\n"
+        f"Example — same currency question:\n"
+        f"  Required at Advanced: Intermediate items + the FAA Wings program as an "
+        f"alternative path (and what it entails — phased flights with a CFI plus "
+        f"ground lessons), 61.57 high-altitude considerations, type-rating and "
+        f"category/class nuances where relevant.\n"
+        f"  If multiple items are missing, you may stack 2-3 sub-questions in a "
+        f"single follow-up turn: e.g., 'What about night currency? And tailwheel? "
+        f"And what other paths can satisfy the flight review requirement?'\n"
+        f"  If everything is covered → next_question: null.\n\n"
+
+        f"=== STYLE WHEN A FOLLOW-UP IS WARRANTED ===\n"
+        f"- Beginner: one short, friendly sentence targeting the missing item.\n"
+        f"- Intermediate: one focused probe, can include a scenario condition "
+        f"(e.g., 'And what about at night?').\n"
+        f"- Advanced: a focused probe, or multi-part if several required items "
+        f"are missing.\n\n"
+
+        f"=== TONE ===\n"
+        f"- All difficulties: semi-formal, professional examiner. Avoid "
+        f"colloquialisms and casual idioms ('bite you', 'gonna', 'sweat it', "
+        f"'crush it', 'gotcha', 'tricky bits', etc.). Use precise, professional "
+        f"language a real DPE would use in an oral exam.\n"
+        f"- beginner: encouraging but professional; brief, warm affirmations\n"
+        f"- intermediate: balanced examiner — fair, corrective when needed\n"
+        f"- checkride: rigorous DPE, demanding mastery, formal, respectful\n\n"
+
+        + (f"FAA EXCERPTS for ground truth — use these for accuracy:\n{context_block}\n\n" if context_block else "")
+
+        + "=== OUTPUT FORMAT ===\n"
+        "Output ONLY a JSON object with these exact keys:\n"
         '  {"verdict": "correct" | "partial" | "incorrect",\n'
-        '   "score": <0-100>,\n'
-        '   "feedback": "<2-4 sentences, address the student in second person, cite FAA sources where helpful>",\n'
-        '   "ask_followup": <true if a probing follow-up would be educational, false if the topic is fully covered>}\n\n'
+        '   "score": <0-100; correct ~90-100, partial ~50-80, incorrect ~0-40>,\n'
+        '   "feedback": "<For correct: brief affirmation (1 sentence). For partial: empty string or null — the next_question itself is the response, do NOT acknowledge partial correctness. For incorrect: 1-3 sentences explaining the correct concept.>",\n'
+        '   "next_question": "<REQUIRED when verdict=\'partial\' — the focused follow-up that probes the specific missing required information. MUST be null when verdict=\'correct\' or verdict=\'incorrect\'. Never invent lateral, judgment, or scenario questions just to continue the conversation.>"}\n\n'
         "No commentary, no markdown fences."
     )
     user_prompt = (
         f"QUESTION: {question}\n\n"
-        f"STUDENT'S ANSWER: {answer}\n\n"
-        f"IDEAL ANSWER (curator's reference, not to be quoted verbatim): {ideal}"
+        f"STUDENT'S ANSWER: {answer}"
+        + (f"\n\nCURATOR'S REFERENCE ANSWER (for your context, not to be quoted): {ideal}" if ideal else "")
     )
 
     try:
