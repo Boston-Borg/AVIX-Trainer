@@ -8,3 +8,9 @@ gunicorn>=22.0.0
 pypdf>=5.0.0          # extract text from PDFs
 voyageai>=0.2.4       # embeddings (Anthropic's recommended partner)
 numpy>=1.26.0         # vector math for similarity search
+
+# Auth + user data
+supabase>=2.8.0       # Supabase Python SDK (handles signup, login, JWT verify)
+
+# Payments
+stripe>=10.0.0        # Stripe Python SDK (Checkout, webhooks, Customer Portal)

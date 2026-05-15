@@ -48,6 +48,61 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 # endpoint return a friendly error.
 client = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
+
+# --- Supabase client setup --------------------------------------------------
+# Supabase handles user accounts and per-user data. The publishable (anon) key
+# is safe to use here — Row Level Security on the Supabase side controls what
+# each user can actually read/write. Same "build only if configured" pattern
+# as Anthropic above, so the server still boots if you forget to set the keys.
+from supabase import create_client
+from functools import wraps
+from datetime import datetime
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+# Service role key — used ONLY by webhook handlers that need to write rows
+# on behalf of the user (RLS would otherwise block them). Never exposed
+# to the browser. Keep in .env / Render's encrypted env store.
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+supabase = (
+    create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    if (SUPABASE_URL and SUPABASE_ANON_KEY)
+    else None
+)
+# Admin client — used by Stripe webhook handlers to write subscription rows.
+supabase_admin = (
+    create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    if (SUPABASE_URL and SUPABASE_SERVICE_KEY)
+    else None
+)
+
+
+# --- Stripe client setup ---------------------------------------------------
+# Stripe handles all card data — we never touch raw card numbers. The
+# checkout flow is hosted by Stripe (PCI-compliant for us by default).
+import stripe
+
+STRIPE_SECRET_KEY     = os.environ.get("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+STRIPE_PRICE_ID       = os.environ.get("STRIPE_PRICE_ID")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+STRIPE_SUCCESS_URL = os.environ.get(
+    "STRIPE_SUCCESS_URL",
+    "http://localhost:8000/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+)
+STRIPE_CANCEL_URL = os.environ.get(
+    "STRIPE_CANCEL_URL", "http://localhost:8000/?checkout=cancel"
+)
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+
+
+def _stripe_configured() -> bool:
+    """True when we have enough Stripe config to actually charge for things."""
+    return bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
+
 # --- Flask app --------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent
 HTML_FILE = "AVX1.2.html"  # the page you already have
@@ -75,10 +130,473 @@ def health():
     return jsonify(
         status="ok",
         api_key_configured=bool(ANTHROPIC_API_KEY),
+        supabase_configured=supabase is not None,
+        supabase_admin_configured=supabase_admin is not None,
+        stripe_configured=_stripe_configured(),
+        stripe_webhook_configured=bool(STRIPE_WEBHOOK_SECRET),
         model=CLAUDE_MODEL,
         rag_index_loaded=retrieval.index_ready(),
         rag_chunks=len(retrieval._index.chunks),
     )
+
+
+# --- Auth: signup, login, logout, "who am I" --------------------------------
+# The flow:
+#   1. Browser POSTs to /api/signup or /api/login with {email, password}.
+#   2. We hand the credentials to Supabase. If valid, Supabase returns an
+#      access token (a JWT). We pass that token back to the browser.
+#   3. The browser stores the token (in localStorage) and includes it in the
+#      "Authorization: Bearer <token>" header on every later API call.
+#   4. The @require_auth decorator below verifies that header on protected
+#      routes by asking Supabase "is this token still valid, and who does it
+#      belong to?" — and attaches the user info to the Flask request object
+#      so route handlers can read it as `request.user`.
+
+
+def require_auth(f):
+    """Decorator: rejects the request with 401 if no valid Supabase JWT.
+
+    Usage:
+        @app.route("/api/chat", methods=["POST"])
+        @require_auth
+        def chat():
+            user = request.user  # populated by this decorator
+            ...
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if supabase is None:
+            return (
+                jsonify(error="Auth not configured: SUPABASE_URL / SUPABASE_ANON_KEY missing."),
+                500,
+            )
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify(error="Missing or malformed Authorization header."), 401
+        token = auth_header.split(" ", 1)[1].strip()
+        if not token:
+            return jsonify(error="Empty bearer token."), 401
+        try:
+            user_response = supabase.auth.get_user(token)
+        except Exception:  # noqa: BLE001
+            log.exception("Token verification failed")
+            return jsonify(error="Invalid or expired token."), 401
+        if user_response is None or user_response.user is None:
+            return jsonify(error="Invalid or expired token."), 401
+
+        # Attach the user (and the raw JWT) to the request so route handlers
+        # can use them. request.user.id is what you'd save as a row owner.
+        request.user = user_response.user
+        request.access_token = token
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def _user_payload(user):
+    """Shrink a Supabase user object down to the safe fields we send to the
+    browser. Don't ever send the whole `user` — it can include internal flags."""
+    return {"id": user.id, "email": user.email}
+
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    """Create a new user account.
+
+    Body: {"email": "...", "password": "..."}
+    Returns: {"access_token": "...", "user": {...}}
+        or  {"message": "Check your email to confirm your account."} if email
+        confirmation is enabled in Supabase (default for new projects).
+    """
+    if supabase is None:
+        return jsonify(error="Auth not configured on server."), 500
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify(error="Email and password are required."), 400
+    if len(password) < 8:
+        return jsonify(error="Password must be at least 8 characters."), 400
+
+    try:
+        result = supabase.auth.sign_up({"email": email, "password": password})
+    except Exception as e:  # noqa: BLE001
+        log.exception("Signup failed")
+        # Supabase exception messages are user-friendly ("User already
+        # registered", "Password should be at least..."), safe to surface.
+        return jsonify(error=str(e)), 400
+
+    if result.session is None:
+        # Email confirmation is on; user must click the link before login.
+        return jsonify(
+            message="Account created. Check your email to confirm before logging in."
+        )
+
+    return jsonify(
+        access_token=result.session.access_token,
+        user=_user_payload(result.user),
+    )
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    """Sign in with email + password. Returns a JWT for the browser to keep."""
+    if supabase is None:
+        return jsonify(error="Auth not configured on server."), 500
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify(error="Email and password are required."), 400
+
+    try:
+        result = supabase.auth.sign_in_with_password(
+            {"email": email, "password": password}
+        )
+    except Exception:  # noqa: BLE001
+        # Don't leak whether email exists vs wrong password — give the same
+        # generic message either way.
+        log.info("Login failed for email=%r", email)
+        return jsonify(error="Invalid email or password."), 401
+
+    return jsonify(
+        access_token=result.session.access_token,
+        user=_user_payload(result.user),
+    )
+
+
+@app.route("/api/logout", methods=["POST"])
+@require_auth
+def logout():
+    """Sign out — revokes the user's session in Supabase.
+
+    The browser should also delete its local copy of the token after a 200.
+    """
+    try:
+        supabase.auth.sign_out()
+    except Exception:  # noqa: BLE001
+        # Worst case the JWT keeps working until its natural expiry; that's
+        # OK because the browser will throw away its copy regardless.
+        log.exception("Server-side sign_out failed; client-side discard still OK")
+    return jsonify(message="Logged out.")
+
+
+@app.route("/api/me", methods=["GET"])
+@require_auth
+def me():
+    """Return the currently-logged-in user + subscription status.
+    The frontend uses this on page load to decide between three screens:
+      - logged-out  → show login
+      - logged-in, no sub → show paywall
+      - logged-in, active sub → show app"""
+    sub_status = (
+        get_subscription_status(request.user.id)
+        if _stripe_configured()
+        else {"active": True, "status": "stripe_not_configured"}
+    )
+    return jsonify(
+        user=_user_payload(request.user),
+        subscription=sub_status,
+        stripe_publishable_key=STRIPE_PUBLISHABLE_KEY or "",
+    )
+
+
+# --- Subscriptions ---------------------------------------------------------
+# Status lookup + paywall decorator. When Stripe is unconfigured the gate is
+# disabled (so local dev works before you set up your Stripe account).
+
+def get_subscription_status(user_id: str) -> dict:
+    """Read the user's subscription row from Supabase. Returns a small dict
+    summarizing whether they have access."""
+    client = supabase_admin or supabase
+    if client is None:
+        return {"active": False, "status": "supabase_not_configured"}
+    try:
+        result = (
+            client.table("subscriptions")
+            .select("status, current_period_end, cancel_at_period_end")
+            .eq("user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to read subscriptions row")
+        return {"active": False, "status": "lookup_error"}
+
+    if not rows:
+        return {"active": False, "status": "none"}
+    row = rows[0]
+    active_states = {"active", "trialing"}
+    return {
+        "active": row.get("status") in active_states,
+        "status": row.get("status"),
+        "current_period_end": row.get("current_period_end"),
+        "cancel_at_period_end": bool(row.get("cancel_at_period_end")),
+    }
+
+
+def require_subscription(f):
+    """Block the route with HTTP 402 if the user has no active subscription.
+
+    Must be stacked below @require_auth (so request.user is populated).
+    No-ops when Stripe isn't configured yet, so local dev keeps working
+    until you finish your Stripe setup."""
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not _stripe_configured():
+            return f(*args, **kwargs)  # paywall off until Stripe is wired up
+        user = getattr(request, "user", None)
+        if user is None:
+            return jsonify(error="Unauthenticated."), 401
+        status = get_subscription_status(user.id)
+        if not status.get("active"):
+            return (
+                jsonify(error="Active subscription required.", subscription=status),
+                402,  # Payment Required
+            )
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+# --- Stripe endpoints ------------------------------------------------------
+# 1. /api/stripe/create-checkout-session — frontend hits this when user clicks
+#    "Subscribe". We create a hosted Stripe Checkout session and return its
+#    URL; the browser redirects there. Stripe collects the card, charges it,
+#    and redirects the user back to STRIPE_SUCCESS_URL on completion.
+# 2. /api/stripe/sync-after-checkout — frontend hits this on the success
+#    redirect. Looks up the checkout session on Stripe, verifies the user
+#    actually paid, mirrors the subscription state into our DB. Works even
+#    without webhooks configured — useful for local dev.
+# 3. /api/stripe/webhook — Stripe POSTs events here for the full lifecycle
+#    (renewals, cancellations, failed payments). Source of truth in prod.
+# 4. /api/stripe/portal — opens Stripe's hosted Customer Portal so users can
+#    update payment method, cancel, view invoices, etc.
+
+def _upsert_subscription_from_stripe(user_id: str, sub) -> None:
+    """Write/refresh a row in public.subscriptions from a Stripe subscription object."""
+    if supabase_admin is None:
+        log.warning(
+            "Cannot persist subscription: SUPABASE_SERVICE_KEY not set. "
+            "Add it to .env (Supabase Project Settings → API Keys → service_role)."
+        )
+        return
+    # Stripe sometimes returns ids vs full objects depending on how the call
+    # was made. If we got just an id back, fetch the full object.
+    if isinstance(sub, str):
+        try:
+            sub = stripe.Subscription.retrieve(sub)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not retrieve Stripe subscription id=%s", sub)
+            return
+
+    # Stripe-py v10+ objects don't support .get() — use [] / KeyError instead.
+    # This helper handles both Stripe objects and plain dicts.
+    def _sf(obj, key, default=None):
+        try:
+            return obj[key]
+        except (KeyError, TypeError):
+            return default
+
+    period_end_ts = _sf(sub, "current_period_end")
+    if not period_end_ts:
+        # current_period_end moved to items.data[0] in newer Stripe API versions.
+        try:
+            period_end_ts = sub["items"]["data"][0]["current_period_end"]
+        except (KeyError, IndexError, TypeError):
+            period_end_ts = None
+
+    period_end_iso = (
+        datetime.utcfromtimestamp(period_end_ts).isoformat() + "Z"
+        if period_end_ts
+        else None
+    )
+    payload = {
+        "user_id": str(user_id),
+        "stripe_customer_id": _sf(sub, "customer"),
+        "stripe_subscription_id": _sf(sub, "id"),
+        "status": _sf(sub, "status"),
+        "current_period_end": period_end_iso,
+        "cancel_at_period_end": bool(_sf(sub, "cancel_at_period_end", False)),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    log.info(
+        "Upserting subscription for user=%s status=%s sub_id=%s customer=%s",
+        payload["user_id"], payload["status"], payload["stripe_subscription_id"],
+        payload["stripe_customer_id"],
+    )
+    try:
+        result = supabase_admin.table("subscriptions").upsert(
+            payload, on_conflict="user_id"
+        ).execute()
+        log.info("Upsert result: %r", getattr(result, "data", None))
+    except Exception as e:  # noqa: BLE001
+        log.exception(
+            "Failed to upsert subscriptions row. payload=%r error=%s", payload, e
+        )
+
+
+@app.route("/api/stripe/create-checkout-session", methods=["POST"])
+@require_auth
+def stripe_create_checkout():
+    if not _stripe_configured():
+        return jsonify(error="Stripe is not configured on the server."), 500
+    user = request.user
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            customer_email=user.email,
+            line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+            success_url=STRIPE_SUCCESS_URL,
+            cancel_url=STRIPE_CANCEL_URL,
+            client_reference_id=user.id,
+            # Metadata travels with the session AND the resulting subscription
+            # so our webhook can map Stripe events back to the Supabase user.
+            metadata={"supabase_user_id": user.id},
+            subscription_data={"metadata": {"supabase_user_id": user.id}},
+            allow_promotion_codes=True,
+        )
+        return jsonify(url=session.url)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Stripe checkout session creation failed")
+        return jsonify(error=str(e)), 400
+
+
+@app.route("/api/stripe/sync-after-checkout", methods=["POST"])
+@require_auth
+def stripe_sync_after_checkout():
+    """Frontend calls this on the success redirect. Verifies the session
+    actually belongs to the current user and was paid, then mirrors the
+    subscription into our DB. Lets us flip the paywall off immediately
+    without needing webhooks set up."""
+    if not _stripe_configured():
+        return jsonify(error="Stripe is not configured."), 500
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify(error="session_id is required"), 400
+    try:
+        session = stripe.checkout.Session.retrieve(
+            session_id, expand=["subscription"]
+        )
+    except Exception as e:  # noqa: BLE001
+        log.exception("Stripe session retrieval failed")
+        return jsonify(error=str(e)), 400
+
+    meta_user = (session.get("metadata") or {}).get("supabase_user_id")
+    if meta_user and meta_user != request.user.id:
+        return jsonify(error="Checkout session does not belong to this user."), 403
+    # "paid" = card charged successfully.
+    # "no_payment_required" = $0 total (e.g. 100% promo code) — still a valid completion.
+    if session.get("payment_status") not in ("paid", "no_payment_required"):
+        return jsonify(error="Payment is not complete yet."), 400
+
+    sub = session.get("subscription")
+    if sub and not isinstance(sub, str):
+        _upsert_subscription_from_stripe(request.user.id, sub)
+    return jsonify(
+        synced=True, subscription=get_subscription_status(request.user.id)
+    )
+
+
+@app.route("/api/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    """Stripe POSTs subscription lifecycle events here. We verify the signature
+    (proves it's really from Stripe) and update our subscriptions table."""
+    if not STRIPE_WEBHOOK_SECRET:
+        # The endpoint exists but is inert until you configure the secret.
+        # This means locally you can test the happy path via sync-after-checkout
+        # before bothering with stripe-cli.
+        return jsonify(error="Webhook secret not configured"), 503
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature", "")
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except (ValueError, stripe.error.SignatureVerificationError):
+        log.warning("Stripe webhook signature verification failed")
+        return jsonify(error="Invalid signature"), 400
+
+    event_type = event["type"]
+    obj = event["data"]["object"]
+    log.info("Stripe webhook: %s", event_type)
+
+    if event_type == "checkout.session.completed":
+        user_id = (obj.get("metadata") or {}).get("supabase_user_id")
+        sub_id = obj.get("subscription")
+        if user_id and sub_id:
+            try:
+                sub = stripe.Subscription.retrieve(sub_id)
+                _upsert_subscription_from_stripe(user_id, sub)
+            except Exception:  # noqa: BLE001
+                log.exception("Failed to sync from checkout.session.completed")
+
+    elif event_type in (
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    ):
+        user_id = (obj.get("metadata") or {}).get("supabase_user_id")
+        # If metadata is missing (e.g. older subscriptions), fall back to
+        # mapping the customer ID we previously saved.
+        if not user_id and supabase_admin is not None:
+            customer_id = obj.get("customer")
+            if customer_id:
+                try:
+                    res = (
+                        supabase_admin.table("subscriptions")
+                        .select("user_id")
+                        .eq("stripe_customer_id", customer_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if res.data:
+                        user_id = res.data[0]["user_id"]
+                except Exception:  # noqa: BLE001
+                    log.exception("Customer-id lookup failed")
+        if user_id:
+            _upsert_subscription_from_stripe(user_id, obj)
+
+    return jsonify(received=True)
+
+
+@app.route("/api/stripe/portal", methods=["POST"])
+@require_auth
+def stripe_portal():
+    """Open Stripe's hosted Customer Portal for managing the subscription."""
+    if not _stripe_configured():
+        return jsonify(error="Stripe is not configured."), 500
+    client = supabase_admin or supabase
+    if client is None:
+        return jsonify(error="Supabase is not configured."), 500
+    try:
+        res = (
+            client.table("subscriptions")
+            .select("stripe_customer_id")
+            .eq("user_id", str(request.user.id))
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        log.exception("Subscription lookup for portal failed")
+        return jsonify(error=str(e)), 500
+
+    if not res.data or not res.data[0].get("stripe_customer_id"):
+        return jsonify(error="No subscription found for this account."), 404
+    customer_id = res.data[0]["stripe_customer_id"]
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=request.host_url,
+        )
+        return jsonify(url=portal_session.url)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Stripe portal session creation failed")
+        return jsonify(error=str(e)), 400
 
 
 RAG_INSTRUCTIONS = """You answer questions for a Private Pilot License (PPL) student.
@@ -99,6 +617,8 @@ FAA EXCERPTS:
 
 
 @app.route("/api/chat", methods=["POST"])
+@require_auth
+@require_subscription
 def chat():
     """
     Forward a chat request to Claude, with RAG context inserted.
@@ -247,6 +767,8 @@ _MAX_COUNT = {"study": 1, "flashcards": 50, "quiz": 50}
 
 
 @app.route("/api/generate", methods=["POST"])
+@require_auth
+@require_subscription
 def generate():
     """Generate a study guide, flash cards, or quiz for one PPL topic."""
     if client is None:
@@ -337,6 +859,8 @@ def generate():
 # would be educational.
 
 @app.route("/api/grade", methods=["POST"])
+@require_auth
+@require_subscription
 def grade():
     """Grade a DPE oral answer."""
     if client is None:

@@ -75,8 +75,134 @@
                border-emerald-500/40 border-amber-500/40 border-rose-500/40
                bg-emerald-500 bg-amber-500 bg-rose-500"></span>
 
+  <!-- ============ AUTH SCREEN (shown when logged out) ============ -->
+  <!-- Starts hidden; JS on page load decides whether to show this or the app. -->
+  <section id="auth-screen" class="hidden flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      <div class="glass rounded-2xl p-8 fade-in">
+        <!-- Logo header -->
+        <div class="flex items-center justify-center gap-3 mb-6">
+          <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+          </div>
+          <div>
+            <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
+          </div>
+        </div>
+
+        <!-- Login / Signup tabs -->
+        <div class="flex gap-1 mb-6 border-b border-zinc-800">
+          <button type="button" id="auth-tab-login" onclick="switchAuthTab('login')"
+                  class="flex-1 px-4 py-2 text-sm font-medium border-b-2 border-blue-500 text-blue-400 -mb-px transition">
+            Log in
+          </button>
+          <button type="button" id="auth-tab-signup" onclick="switchAuthTab('signup')"
+                  class="flex-1 px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-100 -mb-px transition">
+            Sign up
+          </button>
+        </div>
+
+        <!-- The form (one form, the submit handler decides login vs signup) -->
+        <form id="auth-form" class="space-y-4">
+          <div>
+            <label for="auth-email" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email</label>
+            <input id="auth-email" name="email" type="email" required autocomplete="email"
+                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+          </div>
+          <div>
+            <label for="auth-password" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Password</label>
+            <input id="auth-password" name="password" type="password" required autocomplete="current-password" minlength="8"
+                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <div id="auth-pw-hint" class="text-xs text-slate-500 mt-1 hidden">At least 8 characters.</div>
+          </div>
+          <button type="submit" id="auth-submit"
+                  class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2">
+            <span id="auth-submit-text">Log in</span>
+            <i id="auth-submit-spinner" data-lucide="loader-2" class="w-4 h-4 animate-spin hidden"></i>
+          </button>
+          <div id="auth-error" class="hidden text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></div>
+          <div id="auth-success" class="hidden text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2"></div>
+        </form>
+
+        <div class="mt-6 text-center text-xs text-slate-500">
+          Your quiz scores and oral exam history are saved to your account so you can pick up where you left off.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAYWALL SCREEN (shown when logged in but no subscription) ============ -->
+  <section id="paywall-screen" class="hidden flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-lg">
+      <div class="glass rounded-2xl p-8 fade-in">
+        <!-- Header with logo + sign out -->
+        <div class="flex items-start justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
+            </div>
+          </div>
+          <button id="paywall-signout" type="button"
+                  class="text-xs text-slate-500 hover:text-slate-300 transition">Sign out</button>
+        </div>
+
+        <!-- Greeting -->
+        <div id="paywall-greeting" class="text-sm text-slate-400 mb-4"></div>
+
+        <!-- Price -->
+        <div class="text-center mb-6">
+          <div class="text-slate-300 text-sm mb-2">Unlock the full study companion</div>
+          <div class="flex items-baseline justify-center gap-1">
+            <span class="text-5xl font-bold text-slate-100">$20</span>
+            <span class="text-slate-500">/month</span>
+          </div>
+        </div>
+
+        <!-- Features -->
+        <ul class="space-y-3 mb-8 text-sm">
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">CFI Chat</strong> — ask anything, get answers grounded in FAA sources with inline citations.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">Study guides, flashcards &amp; quizzes</strong> — generated on demand for any PPL topic.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">DPE oral exam simulator</strong> — three difficulty modes from beginner to checkride.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">Progress saved across devices</strong> — pick up where you left off, anywhere.</span>
+          </li>
+        </ul>
+
+        <!-- Action -->
+        <button id="paywall-subscribe-btn" type="button"
+                class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
+          <span id="paywall-subscribe-text">Subscribe — $20/month</span>
+          <i id="paywall-subscribe-spinner" data-lucide="loader-2" class="w-4 h-4 animate-spin hidden"></i>
+        </button>
+        <div id="paywall-error" class="hidden mt-3 text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></div>
+        <div id="paywall-info"  class="hidden mt-3 text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2"></div>
+
+        <!-- Trust line -->
+        <div class="mt-6 text-center text-xs text-slate-500">
+          Secure payments by Stripe — your card never touches our servers. Cancel anytime.
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ TOP NAV ============ -->
-  <nav class="bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
+  <!-- Hidden by default; JS shows it after successful auth + subscription check. -->
+  <nav class="hidden bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16 items-center">
         <button onclick="goto('home')" class="flex items-center gap-2 hover:opacity-80 transition">
@@ -112,7 +238,7 @@
     </div>
   </nav>
 
-  <main class="flex-1">
+  <main class="hidden flex-1">
 
     <!-- ============ HOME ============ -->
     <section id="view-home" class="view">
@@ -429,6 +555,331 @@
 
   <!-- ============ APP SCRIPT ============ -->
   <script>
+    // ============================================================
+    //                       AUTH
+    // ============================================================
+    // The login token is a JWT issued by Supabase (via our /api/login or
+    // /api/signup endpoints). We stash it in localStorage so a refresh keeps
+    // the user signed in. Every API call to /api/* sends it in the
+    // Authorization header so the backend knows who's asking.
+
+    const AUTH_TOKEN_KEY = 'avx_access_token';
+
+    function getAuthToken()  { return localStorage.getItem(AUTH_TOKEN_KEY); }
+    function setAuthToken(t) { localStorage.setItem(AUTH_TOKEN_KEY, t); }
+    function clearAuthToken(){ localStorage.removeItem(AUTH_TOKEN_KEY); }
+
+    // Drop-in replacement for fetch() that:
+    //   - attaches the Bearer token automatically
+    //   - kicks the user back to the login screen on 401 (expired token)
+    async function apiFetch(url, options = {}) {
+      const token = getAuthToken();
+      const headers = { ...(options.headers || {}) };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(url, { ...options, headers });
+      if (res.status === 401) {
+        clearAuthToken();
+        showAuthScreen();
+        throw new Error('Your session expired. Please log in again.');
+      }
+      return res;
+    }
+
+    // -------- Show / hide the three screens (auth, paywall, app) --------
+    // Exactly one of these is visible at a time. Helpers below set the right
+    // combination of hidden classes and stash the user on window.
+    function _hideAllScreens() {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('paywall-screen').classList.add('hidden');
+      document.querySelector('nav').classList.add('hidden');
+      document.querySelector('main').classList.add('hidden');
+    }
+    function showAuthScreen() {
+      _hideAllScreens();
+      document.getElementById('auth-screen').classList.remove('hidden');
+    }
+    function showPaywallScreen(user, subscription) {
+      _hideAllScreens();
+      document.getElementById('paywall-screen').classList.remove('hidden');
+      window.currentUser = user;
+      // Personalized greeting + status-specific note.
+      const greeting = document.getElementById('paywall-greeting');
+      if (greeting && user?.email) {
+        let note = `Signed in as <strong class="text-slate-200">${user.email}</strong>.`;
+        if (subscription?.status === 'past_due') {
+          note += ' Your last payment failed — please update your card to continue.';
+        } else if (subscription?.status === 'canceled') {
+          note += ' Your subscription was canceled. Resubscribe to regain access.';
+        }
+        greeting.innerHTML = note;
+      }
+    }
+    function showAppShell(user) {
+      _hideAllScreens();
+      document.querySelector('nav').classList.remove('hidden');
+      document.querySelector('main').classList.remove('hidden');
+      window.currentUser = user;
+      const profileBtn = document.getElementById('profile-btn');
+      if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
+    }
+
+    // Fetch /api/me with the saved token. Returns the full payload
+    // ({user, subscription, stripe_publishable_key}) or null if unauthenticated.
+    async function fetchMe() {
+      const token = getAuthToken();
+      if (!token) return null;
+      try {
+        const res = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) { clearAuthToken(); return null; }
+        return await res.json();
+      } catch { return null; }
+    }
+
+    // Given a /api/me response (or null), decide which screen to render.
+    // Returns the response so callers can branch further if they want.
+    function routeToScreen(me) {
+      if (!me) { showAuthScreen(); return null; }
+      if (me.subscription?.active) {
+        showAppShell(me.user);
+      } else {
+        showPaywallScreen(me.user, me.subscription);
+      }
+      return me;
+    }
+
+    // Backwards-compat shim — older code paths still call checkAuthSession.
+    async function checkAuthSession() {
+      const me = await fetchMe();
+      return routeToScreen(me);
+    }
+
+    // -------- Login / signup tab toggle --------
+    let authMode = 'login';  // 'login' or 'signup'
+    function switchAuthTab(mode) {
+      authMode = mode;
+      const loginTab  = document.getElementById('auth-tab-login');
+      const signupTab = document.getElementById('auth-tab-signup');
+      const submitText = document.getElementById('auth-submit-text');
+      const pwHint = document.getElementById('auth-pw-hint');
+      const pwInput = document.getElementById('auth-password');
+      hideAuthMessage('error');
+      hideAuthMessage('success');
+      const activate = (tab) => {
+        tab.classList.add('border-blue-500', 'text-blue-400');
+        tab.classList.remove('border-transparent', 'text-slate-400');
+      };
+      const deactivate = (tab) => {
+        tab.classList.remove('border-blue-500', 'text-blue-400');
+        tab.classList.add('border-transparent', 'text-slate-400');
+      };
+      if (mode === 'login') {
+        activate(loginTab); deactivate(signupTab);
+        submitText.textContent = 'Log in';
+        pwHint.classList.add('hidden');
+        pwInput.setAttribute('autocomplete', 'current-password');
+      } else {
+        activate(signupTab); deactivate(loginTab);
+        submitText.textContent = 'Create account';
+        pwHint.classList.remove('hidden');
+        pwInput.setAttribute('autocomplete', 'new-password');
+      }
+    }
+
+    // -------- Inline messages on the auth form --------
+    function showAuthMessage(kind, text) {
+      const el = document.getElementById(`auth-${kind}`);
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+    function hideAuthMessage(kind) {
+      document.getElementById(`auth-${kind}`).classList.add('hidden');
+    }
+    function setAuthSubmitting(isLoading) {
+      document.getElementById('auth-submit').disabled = isLoading;
+      const spinner = document.getElementById('auth-submit-spinner');
+      if (isLoading) spinner.classList.remove('hidden');
+      else spinner.classList.add('hidden');
+    }
+
+    // -------- Form submit: login or signup --------
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      hideAuthMessage('error');
+      hideAuthMessage('success');
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      if (!email || !password) {
+        showAuthMessage('error', 'Email and password are required.');
+        return;
+      }
+      const endpoint = authMode === 'login' ? '/api/login' : '/api/signup';
+      setAuthSubmitting(true);
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        if (data.access_token) {
+          // Logged in (or signed up with email confirmation disabled).
+          // Save token, then re-fetch /api/me to get subscription status,
+          // then route to either the app or the paywall.
+          setAuthToken(data.access_token);
+          const me = await fetchMe();
+          const routed = routeToScreen(me);
+          if (routed?.subscription?.active) {
+            goto('home');
+            updateProgressUI();
+          }
+        } else if (data.message) {
+          // Signup pending — Supabase needs the user to confirm via email
+          showAuthMessage('success', data.message);
+          document.getElementById('auth-form').reset();
+        }
+      } catch (err) {
+        showAuthMessage('error', err.message);
+      } finally {
+        setAuthSubmitting(false);
+      }
+    }
+
+    // -------- Sign out --------
+    async function handleLogout() {
+      try { await apiFetch('/api/logout', { method: 'POST' }); }
+      catch { /* server-side failure is harmless; we discard the token regardless */ }
+      clearAuthToken();
+      window.currentUser = null;
+      showAuthScreen();
+    }
+
+    // Wire up the auth UI. Called once from the page-load handler at the bottom.
+    function initAuthUI() {
+      document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+      const profileBtn = document.getElementById('profile-btn');
+      if (profileBtn) {
+        profileBtn.addEventListener('click', async () => {
+          const email = window.currentUser?.email || 'your account';
+          // Three options: manage subscription, sign out, cancel.
+          const choice = prompt(
+            `Account: ${email}\n\n` +
+            `Type "billing" to manage your subscription, ` +
+            `"signout" to sign out, ` +
+            `or close this dialog to cancel.`,
+            ''
+          );
+          if (choice === null) return;
+          const c = choice.trim().toLowerCase();
+          if (c === 'signout' || c === 'sign out' || c === 'logout' || c === 'log out') {
+            handleLogout();
+          } else if (c === 'billing' || c === 'manage' || c === 'subscription') {
+            await openBillingPortal();
+          }
+        });
+      }
+    }
+
+
+    // ============================================================
+    //                       PAYWALL / STRIPE
+    // ============================================================
+    // Subscribe button → asks the backend to create a Stripe Checkout session,
+    // then redirects the whole page to Stripe's hosted checkout. After payment
+    // Stripe redirects back to /?checkout=success&session_id=... where
+    // handleCheckoutReturn() picks up and syncs the subscription.
+
+    function showPaywallMessage(kind, text) {
+      const el = document.getElementById(`paywall-${kind}`);
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+    function hidePaywallMessage(kind) {
+      document.getElementById(`paywall-${kind}`)?.classList.add('hidden');
+    }
+    function setPaywallSubmitting(isLoading) {
+      const btn = document.getElementById('paywall-subscribe-btn');
+      const spinner = document.getElementById('paywall-subscribe-spinner');
+      if (btn) btn.disabled = isLoading;
+      if (spinner) {
+        if (isLoading) spinner.classList.remove('hidden');
+        else spinner.classList.add('hidden');
+      }
+    }
+
+    async function handleSubscribeClick() {
+      hidePaywallMessage('error');
+      hidePaywallMessage('info');
+      setPaywallSubmitting(true);
+      try {
+        const res = await apiFetch('/api/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
+        if (!data.url) throw new Error('No checkout URL returned.');
+        // Redirect to Stripe — the rest happens off-site.
+        window.location.href = data.url;
+      } catch (err) {
+        showPaywallMessage('error', err.message);
+        setPaywallSubmitting(false);
+      }
+    }
+
+    async function openBillingPortal() {
+      try {
+        const res = await apiFetch('/api/stripe/portal', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not open billing portal.');
+        if (data.url) window.location.href = data.url;
+      } catch (err) {
+        alert(`Could not open billing portal: ${err.message}`);
+      }
+    }
+
+    function initPaywallUI() {
+      document.getElementById('paywall-subscribe-btn')
+        ?.addEventListener('click', handleSubscribeClick);
+      document.getElementById('paywall-signout')
+        ?.addEventListener('click', handleLogout);
+    }
+
+    // Reads ?checkout=... from the URL after Stripe redirects back. If the
+    // user just paid successfully, hand the session_id to the backend so it
+    // can mirror the subscription into our DB *without waiting for webhooks*.
+    // Returns true if the URL changed (so the caller should re-fetch /api/me).
+    async function handleCheckoutReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const checkout = params.get('checkout');
+      const sessionId = params.get('session_id');
+      if (!checkout) return false;
+      // Clean the URL so a refresh doesn't re-run this.
+      window.history.replaceState({}, '', window.location.pathname);
+      if (checkout === 'success' && sessionId) {
+        try {
+          await apiFetch('/api/stripe/sync-after-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+        } catch (err) {
+          console.warn('Subscription sync failed:', err);
+        }
+        return true;
+      }
+      if (checkout === 'cancel') {
+        // Show a friendly note on the paywall once we render it.
+        window._pendingPaywallNote = 'Checkout canceled. You can subscribe whenever you\'re ready.';
+        return false;
+      }
+      return false;
+    }
+
+
     // ============================================================
     //                    APP STATE
     // ============================================================
@@ -828,7 +1279,7 @@ Style:
         .filter(m => m.content.length > 0);
 
       try {
-        const res = await fetch('/api/chat', {
+        const res = await apiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT })
@@ -1166,7 +1617,7 @@ Style:
     async function generateResource(kind, topic, count) {
       const body = { kind, topic };
       if (typeof count === 'number') body.count = count;
-      const res = await fetch('/api/generate', {
+      const res = await apiFetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -1621,7 +2072,7 @@ Style:
                        : mode === 'advanced'  ? 'checkride'
                        : 'intermediate';
       try {
-        const res = await fetch('/api/grade', {
+        const res = await apiFetch('/api/grade', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2051,10 +2502,36 @@ Style:
     // ============================================================
     //                    INIT
     // ============================================================
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Render icons first so the auth screen shows the plane logo + spinner.
       lucide.createIcons();
-      goto('home');
-      updateProgressUI();
+      // Wire up the auth form, the paywall subscribe button, and the
+      // profile-menu sign-out.
+      initAuthUI();
+      initPaywallUI();
+      // If Stripe just redirected us back, sync the subscription before
+      // we decide which screen to show.
+      const cameBackFromCheckout = await handleCheckoutReturn();
+      // Now fetch the user + subscription state and route to one of the
+      // three screens (auth / paywall / app).
+      const me = await fetchMe();
+      const routed = routeToScreen(me);
+      if (routed?.subscription?.active) {
+        goto('home');
+        updateProgressUI();
+      } else if (routed && window._pendingPaywallNote) {
+        // Carry over the "checkout canceled" message onto the paywall.
+        showPaywallMessage('info', window._pendingPaywallNote);
+        window._pendingPaywallNote = null;
+      } else if (routed && cameBackFromCheckout) {
+        // We just synced after a successful checkout but the subscription
+        // still isn't active. Could be a Stripe propagation delay or an
+        // unfinished payment — surface a soft hint on the paywall.
+        showPaywallMessage('info', 'Finalizing your subscription — refresh in a moment if it doesn\'t appear.');
+      }
+      // After potentially swapping screens, re-create any lucide icons
+      // we just unhid (paywall, app, etc.).
+      lucide.createIcons();
     });
   </script>
 </body>
