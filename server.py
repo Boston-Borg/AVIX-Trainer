@@ -376,6 +376,15 @@ def require_subscription(f):
 # 4. /api/stripe/portal — opens Stripe's hosted Customer Portal so users can
 #    update payment method, cancel, view invoices, etc.
 
+def _stripe_get(obj, key, default=None):
+    """Safe field access for Stripe-py v10+ objects (which removed .get()) and
+    for plain dicts. Use this anywhere we touch a Stripe API response."""
+    try:
+        return obj[key]
+    except (KeyError, TypeError):
+        return default
+
+
 def _upsert_subscription_from_stripe(user_id: str, sub) -> None:
     """Write/refresh a row in public.subscriptions from a Stripe subscription object."""
     if supabase_admin is None:
@@ -393,15 +402,7 @@ def _upsert_subscription_from_stripe(user_id: str, sub) -> None:
             log.exception("Could not retrieve Stripe subscription id=%s", sub)
             return
 
-    # Stripe-py v10+ objects don't support .get() — use [] / KeyError instead.
-    # This helper handles both Stripe objects and plain dicts.
-    def _sf(obj, key, default=None):
-        try:
-            return obj[key]
-        except (KeyError, TypeError):
-            return default
-
-    period_end_ts = _sf(sub, "current_period_end")
+    period_end_ts = _stripe_get(sub, "current_period_end")
     if not period_end_ts:
         # current_period_end moved to items.data[0] in newer Stripe API versions.
         try:
@@ -416,11 +417,11 @@ def _upsert_subscription_from_stripe(user_id: str, sub) -> None:
     )
     payload = {
         "user_id": str(user_id),
-        "stripe_customer_id": _sf(sub, "customer"),
-        "stripe_subscription_id": _sf(sub, "id"),
-        "status": _sf(sub, "status"),
+        "stripe_customer_id": _stripe_get(sub, "customer"),
+        "stripe_subscription_id": _stripe_get(sub, "id"),
+        "status": _stripe_get(sub, "status"),
         "current_period_end": period_end_iso,
-        "cancel_at_period_end": bool(_sf(sub, "cancel_at_period_end", False)),
+        "cancel_at_period_end": bool(_stripe_get(sub, "cancel_at_period_end", False)),
         "updated_at": datetime.utcnow().isoformat() + "Z",
     }
     log.info(
@@ -486,17 +487,26 @@ def stripe_sync_after_checkout():
         log.exception("Stripe session retrieval failed")
         return jsonify(error=str(e)), 400
 
-    meta_user = (session.get("metadata") or {}).get("supabase_user_id")
+    metadata = _stripe_get(session, "metadata") or {}
+    meta_user = _stripe_get(metadata, "supabase_user_id")
     if meta_user and meta_user != request.user.id:
         return jsonify(error="Checkout session does not belong to this user."), 403
     # "paid" = card charged successfully.
     # "no_payment_required" = $0 total (e.g. 100% promo code) — still a valid completion.
-    if session.get("payment_status") not in ("paid", "no_payment_required"):
-        return jsonify(error="Payment is not complete yet."), 400
+    payment_status = _stripe_get(session, "payment_status")
+    if payment_status not in ("paid", "no_payment_required"):
+        return jsonify(error=f"Payment is not complete yet (status={payment_status})."), 400
 
-    sub = session.get("subscription")
+    sub = _stripe_get(session, "subscription")
     if sub and not isinstance(sub, str):
         _upsert_subscription_from_stripe(request.user.id, sub)
+    elif isinstance(sub, str):
+        # If the expand=["subscription"] didn't expand for any reason, fetch it.
+        try:
+            sub_obj = stripe.Subscription.retrieve(sub)
+            _upsert_subscription_from_stripe(request.user.id, sub_obj)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not retrieve subscription from id-only response")
     return jsonify(
         synced=True, subscription=get_subscription_status(request.user.id)
     )
@@ -526,8 +536,9 @@ def stripe_webhook():
     log.info("Stripe webhook: %s", event_type)
 
     if event_type == "checkout.session.completed":
-        user_id = (obj.get("metadata") or {}).get("supabase_user_id")
-        sub_id = obj.get("subscription")
+        metadata = _stripe_get(obj, "metadata") or {}
+        user_id = _stripe_get(metadata, "supabase_user_id")
+        sub_id = _stripe_get(obj, "subscription")
         if user_id and sub_id:
             try:
                 sub = stripe.Subscription.retrieve(sub_id)
@@ -540,11 +551,12 @@ def stripe_webhook():
         "customer.subscription.updated",
         "customer.subscription.deleted",
     ):
-        user_id = (obj.get("metadata") or {}).get("supabase_user_id")
+        metadata = _stripe_get(obj, "metadata") or {}
+        user_id = _stripe_get(metadata, "supabase_user_id")
         # If metadata is missing (e.g. older subscriptions), fall back to
         # mapping the customer ID we previously saved.
         if not user_id and supabase_admin is not None:
-            customer_id = obj.get("customer")
+            customer_id = _stripe_get(obj, "customer")
             if customer_id:
                 try:
                     res = (
