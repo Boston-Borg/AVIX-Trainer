@@ -608,48 +608,6 @@
     </div>
   </footer>
 
-  <!-- ============ AUTH MODAL (gates CFI / DPE / Resources) ============ -->
-  <div id="auth-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto" onclick="closeAuthModal(event)">
-    <div class="min-h-screen flex items-center justify-center p-4">
-      <div class="bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-900 max-w-md w-full p-6 md:p-8" onclick="event.stopPropagation()">
-        <div class="text-center mb-6">
-          <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 mx-auto">
-            <i data-lucide="lock" class="w-6 h-6 text-blue-400"></i>
-          </div>
-          <h2 id="auth-modal-title" class="text-2xl font-bold text-slate-100 mb-1">Log in to continue</h2>
-          <p id="auth-modal-subtitle" class="text-sm text-slate-400">Sign in to use the CFI chat, DPE oral, and Resources.</p>
-        </div>
-
-        <form id="auth-form" class="space-y-3">
-          <div>
-            <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5" for="auth-email">Email</label>
-            <input type="email" id="auth-email" required class="w-full px-4 py-3 rounded-lg border outline-none text-sm" autocomplete="email" placeholder="you@example.com" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5" for="auth-password">Password</label>
-            <input type="password" id="auth-password" required minlength="6" class="w-full px-4 py-3 rounded-lg border outline-none text-sm" autocomplete="current-password" placeholder="••••••••" />
-          </div>
-          <button type="submit" class="w-full px-4 py-3 mt-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2">
-            <i data-lucide="log-in" class="w-4 h-4"></i> <span id="auth-submit-label">Log In</span>
-          </button>
-        </form>
-
-        <div class="mt-4 text-center text-sm">
-          <span class="text-slate-500" id="auth-toggle-prompt">Don't have an account?</span>
-          <button type="button" onclick="toggleAuthMode()" class="ml-1 text-blue-400 hover:text-blue-300 underline" id="auth-toggle-btn">Sign up</button>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-zinc-900 text-center">
-          <button type="button" onclick="closeAuthModal()" class="text-xs text-slate-500 hover:text-slate-300">Continue browsing without logging in</button>
-        </div>
-
-        <div class="mt-4 text-[10px] text-slate-600 text-center leading-relaxed">
-          UI scaffold — any email + 6+ char password is accepted. Real authentication and billing will hook in when the backend is wired up.
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ APP SCRIPT ============ -->
   <script>
     // ============================================================
@@ -1073,140 +1031,9 @@
     };
 
     // ============================================================
-    //                    AUTH (UI gating)
-    // ============================================================
-    // Home is open to everyone. CFI Chat, Resources, and the DPE oral all
-    // require login. Auth state persists in localStorage so returning users
-    // don't have to log in again. The form currently accepts any email plus
-    // a 6+ char password — backend authentication and billing will replace
-    // this stub when they're wired up.
-    const AUTH_STORAGE_KEY = 'avix_auth_v1';
-    const GATED_VIEWS = new Set(['chat', 'study', 'test']);
-    let _authMode = 'login';     // 'login' or 'signup'
-    let _pendingView = null;     // view the user wanted before being prompted
-
-    function getAuthState() {
-      try {
-        const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch (_) { return null; }
-    }
-    function setAuthState(s) {
-      try { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
-    }
-    function clearAuthState() {
-      try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch (_) {}
-    }
-    function isLoggedIn() { return !!getAuthState(); }
-
-    function applyAuthMode() {
-      const isSignup = _authMode === 'signup';
-      document.getElementById('auth-modal-title').textContent =
-        isSignup ? 'Create your account' : 'Log in to continue';
-      document.getElementById('auth-modal-subtitle').textContent =
-        isSignup
-          ? 'Sign up to unlock the CFI chat, DPE oral, and Resources.'
-          : 'Sign in to use the CFI chat, DPE oral, and Resources.';
-      document.getElementById('auth-submit-label').textContent = isSignup ? 'Sign Up' : 'Log In';
-      document.getElementById('auth-toggle-prompt').textContent =
-        isSignup ? 'Already have an account?' : "Don't have an account?";
-      document.getElementById('auth-toggle-btn').textContent = isSignup ? 'Log in' : 'Sign up';
-    }
-    function toggleAuthMode() {
-      _authMode = _authMode === 'login' ? 'signup' : 'login';
-      applyAuthMode();
-    }
-
-    function openAuthModal(targetView) {
-      _pendingView = targetView || null;
-      _authMode = 'login';  // default to Log In; toggle to Sign Up via the link
-      applyAuthMode();
-      document.getElementById('auth-modal').classList.remove('hidden');
-      lucide.createIcons();
-      setTimeout(() => {
-        const emailInput = document.getElementById('auth-email');
-        if (emailInput) emailInput.focus();
-      }, 100);
-    }
-    function closeAuthModal(e) {
-      // Only dismiss when the click was on the overlay itself (or no event,
-      // e.g. when called from the "Continue browsing" button). Clicks inside
-      // the inner card don't bubble here because of stopPropagation on the card.
-      if (e && e.target && e.target.id !== 'auth-modal') return;
-      document.getElementById('auth-modal').classList.add('hidden');
-      _pendingView = null;
-    }
-
-    document.getElementById('auth-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const emailField = document.getElementById('auth-email');
-      const pwField    = document.getElementById('auth-password');
-      const email = (emailField.value || '').trim().toLowerCase();
-      const password = pwField.value || '';
-      if (!email || password.length < 6) return;
-
-      // Stub auth: save email + a timestamp. Password is never stored.
-      setAuthState({
-        email,
-        signedUpAt: Date.now(),
-        mode: _authMode,
-      });
-
-      // Reset form
-      emailField.value = '';
-      pwField.value = '';
-
-      document.getElementById('auth-modal').classList.add('hidden');
-      updateAuthUI();
-
-      // If the user was trying to reach a gated view, route them there now.
-      const target = _pendingView;
-      _pendingView = null;
-      if (target) goto(target);
-    });
-
-    function logout() {
-      clearAuthState();
-      updateAuthUI();
-      // If currently on a gated view, kick back to home.
-      if (GATED_VIEWS.has(state.view)) goto('home');
-    }
-
-    function updateAuthUI() {
-      const auth = getAuthState();
-      const btn = document.getElementById('profile-btn');
-      if (!btn) return;
-      if (auth && auth.email) {
-        btn.title = `Logged in as ${auth.email} — click to sign out`;
-        btn.setAttribute('aria-label', `Profile: ${auth.email}`);
-        btn.classList.add('border-blue-500/40');
-        btn.classList.remove('border-zinc-800');
-      } else {
-        btn.title = 'Log in or sign up';
-        btn.setAttribute('aria-label', 'Log in');
-        btn.classList.remove('border-blue-500/40');
-        btn.classList.add('border-zinc-800');
-      }
-    }
-
-    document.getElementById('profile-btn').addEventListener('click', () => {
-      if (isLoggedIn()) {
-        const auth = getAuthState();
-        if (confirm(`Sign out of AVIX?\n\nLogged in as: ${auth.email}`)) logout();
-      } else {
-        openAuthModal();
-      }
-    });
-
-    // ============================================================
     //                    NAVIGATION
     // ============================================================
     function goto(view) {
-      // Gate restricted views behind login.
-      if (GATED_VIEWS.has(view) && !isLoggedIn()) {
-        openAuthModal(view);
-        return;
-      }
       state.view = view;
       document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
       document.getElementById('view-' + view).classList.remove('hidden');
@@ -3107,9 +2934,6 @@ Style:
       // After potentially swapping screens, re-create any lucide icons
       // we just unhid (paywall, app, etc.).
       lucide.createIcons();
-      updateAuthUI();
-      goto('home');
-      updateProgressUI();
     });
   </script>
 </body>
