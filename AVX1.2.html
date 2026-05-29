@@ -255,9 +255,26 @@
             <button onclick="goto('study')" data-nav="study" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Resources</button>
             <button onclick="goto('test')" data-nav="test" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">DPE Oral</button>
           </div>
-          <button id="profile-btn" aria-label="Profile" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
-            <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
-          </button>
+          <div class="relative">
+            <button id="profile-btn" aria-label="Profile" aria-haspopup="true" aria-expanded="false" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
+              <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
+            </button>
+            <!-- Account dropdown menu — toggled by the profile button -->
+            <div id="profile-menu" class="hidden absolute right-0 top-11 z-50 w-64 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl shadow-black/60 overflow-hidden fade-in" role="menu">
+              <div class="px-4 py-3 border-b border-zinc-900">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Signed in as</div>
+                <div id="profile-menu-email" class="text-sm text-slate-100 truncate">—</div>
+              </div>
+              <button type="button" onclick="profileMenuAction('billing')" class="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-zinc-900 transition flex items-center gap-3" role="menuitem">
+                <i data-lucide="credit-card" class="w-4 h-4 text-blue-400 flex-shrink-0"></i>
+                <span>Manage subscription</span>
+              </button>
+              <button type="button" onclick="profileMenuAction('signout')" class="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-zinc-900 transition flex items-center gap-3 border-t border-zinc-900" role="menuitem">
+                <i data-lucide="log-out" class="w-4 h-4 text-blue-400 flex-shrink-0"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
           <button id="mobile-menu-btn" class="md:hidden p-2 text-slate-300">
             <i data-lucide="menu" class="w-6 h-6 text-blue-400"></i>
           </button>
@@ -885,30 +902,68 @@
       showAuthScreen();
     }
 
+    // Open/close helpers for the account dropdown menu.
+    function openProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      const btn  = document.getElementById('profile-btn');
+      const emailEl = document.getElementById('profile-menu-email');
+      if (!menu) return;
+      if (emailEl) emailEl.textContent = window.currentUser?.email || 'your account';
+      menu.classList.remove('hidden');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+      lucide.createIcons();
+    }
+    function closeProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      const btn  = document.getElementById('profile-btn');
+      if (!menu) return;
+      menu.classList.add('hidden');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      if (!menu) return;
+      if (menu.classList.contains('hidden')) openProfileMenu();
+      else closeProfileMenu();
+    }
+
+    // Dispatcher for the dropdown's menu items. Hides the menu first so the
+    // UI feels snappy even if the action triggers a navigation/redirect.
+    async function profileMenuAction(action) {
+      closeProfileMenu();
+      if (action === 'signout') {
+        handleLogout();
+      } else if (action === 'billing') {
+        await openBillingPortal();
+      }
+    }
+
     // Wire up the auth UI. Called once from the page-load handler at the bottom.
     function initAuthUI() {
       document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+
       const profileBtn = document.getElementById('profile-btn');
       if (profileBtn) {
-        profileBtn.addEventListener('click', async () => {
-          const email = window.currentUser?.email || 'your account';
-          // Three options: manage subscription, sign out, cancel.
-          const choice = prompt(
-            `Account: ${email}\n\n` +
-            `Type "billing" to manage your subscription, ` +
-            `"signout" to sign out, ` +
-            `or close this dialog to cancel.`,
-            ''
-          );
-          if (choice === null) return;
-          const c = choice.trim().toLowerCase();
-          if (c === 'signout' || c === 'sign out' || c === 'logout' || c === 'log out') {
-            handleLogout();
-          } else if (c === 'billing' || c === 'manage' || c === 'subscription') {
-            await openBillingPortal();
-          }
+        profileBtn.addEventListener('click', (e) => {
+          // Stop the event from bubbling to the document handler that closes
+          // the menu when clicking outside.
+          e.stopPropagation();
+          toggleProfileMenu();
         });
       }
+
+      // Click anywhere outside the dropdown to close it.
+      document.addEventListener('click', (e) => {
+        const menu = document.getElementById('profile-menu');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (menu.contains(e.target)) return;  // clicks inside the menu close via the action handler
+        closeProfileMenu();
+      });
+
+      // Esc closes the menu.
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeProfileMenu();
+      });
     }
 
 
