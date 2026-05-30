@@ -1120,6 +1120,20 @@ def grade():
     ideal = (data.get("ideal") or "").strip()  # optional now
     difficulty = (data.get("difficulty") or "checkride").strip()  # beginner/intermediate/checkride
 
+    # Optional: prior turns in this topic's conversation. Each is {q, a}. Used
+    # so the grader can evaluate the student's CUMULATIVE answer across turns,
+    # not just the latest one — when the student answers in pieces over a
+    # main + follow-up exchange, all the pieces count toward "covered".
+    previous_turns_raw = data.get("previous_turns") or []
+    previous_turns: list[dict] = []
+    if isinstance(previous_turns_raw, list):
+        for t in previous_turns_raw:
+            if isinstance(t, dict):
+                q_t = str(t.get("q") or "").strip()
+                a_t = str(t.get("a") or "").strip()
+                if q_t and a_t:
+                    previous_turns.append({"q": q_t, "a": a_t})
+
     if not question or not answer:
         return jsonify(error="`question` and `answer` are required."), 400
 
@@ -1180,6 +1194,25 @@ def grade():
         f"If you're uncertain whether to mark partial or incorrect, pick "
         f"partial. The base of the answer being there earns the student "
         f"partial credit and a follow-up, not a red mark.\n\n"
+
+        f"=== EVALUATE THE STUDENT'S CUMULATIVE ANSWER ===\n"
+        f"You may be given PREVIOUS TURNS from earlier in this same topic "
+        f"conversation. When deciding whether a required item is \"covered\", "
+        f"consider what the student has said across ALL their turns so far on "
+        f"this topic — not just the latest answer in isolation.\n\n"
+        f"Example: an Intermediate currency question requires (a) flight review "
+        f"every 24 months, (b) 3 takeoffs/landings in 90 days, (c) night-currency "
+        f"rule, (d) tailwheel rule. If the student covered (a)+(b) in their main "
+        f"answer, and then in a follow-up about night currency they said 'three "
+        f"to a full stop between an hour after sunset and an hour before "
+        f"sunrise', they have NOW covered (a)+(b)+(c) cumulatively. If (d) is "
+        f"still missing → verdict 'partial', next_question probes only (d). If "
+        f"(d) was also already stated in an earlier turn → verdict 'correct'.\n\n"
+        f"NEVER mark the latest turn 'incorrect' just because it didn't repeat "
+        f"items the student already stated earlier. Each turn naturally focuses "
+        f"on what the DPE asked in that turn.\n\n"
+        f"If no previous turns are provided, treat the current answer as the "
+        f"complete record and grade as usual.\n\n"
 
         f"=== KEY RULE FOR PARTIAL ===\n"
         f"When the verdict is 'partial', you have ONE behavior: put the focused "
@@ -1286,10 +1319,21 @@ def grade():
         '   "next_question": "<REQUIRED when verdict=\'partial\' — the focused follow-up that probes the specific missing required information. MUST be null when verdict=\'correct\' or verdict=\'incorrect\'. Never invent lateral, judgment, or scenario questions just to continue the conversation.>"}\n\n'
         "No commentary, no markdown fences."
     )
+    # Format the previous-turns context as a labeled transcript so the model
+    # can see the running conversation. Numbering makes it scannable.
+    prev_turns_block = ""
+    if previous_turns:
+        lines = ["PREVIOUS TURNS in this topic (chronological — the student already said these):"]
+        for i, t in enumerate(previous_turns, start=1):
+            lines.append(f"  [T{i} Q] {t['q']}")
+            lines.append(f"  [T{i} A] {t['a']}")
+        prev_turns_block = "\n".join(lines) + "\n\n"
+
     user_prompt = (
-        f"QUESTION: {question}\n\n"
-        f"STUDENT'S ANSWER: {answer}"
-        + (f"\n\nCURATOR'S REFERENCE ANSWER (for your context, not to be quoted): {ideal}" if ideal else "")
+        prev_turns_block
+        + f"CURRENT QUESTION (this is what you are grading the student's reply to): {question}\n\n"
+        + f"STUDENT'S CURRENT ANSWER: {answer}"
+        + (f"\n\nCURATOR'S REFERENCE ANSWER for the current question (for your context, not to be quoted verbatim): {ideal}" if ideal else "")
     )
 
     try:

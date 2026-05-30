@@ -2440,11 +2440,17 @@ Style:
     // AI-powered grader. Calls /api/grade which uses Claude to issue one of
     // three verdicts (correct / partial / wrong) and a focused follow-up
     // question when the verdict is 'partial'.
-    async function gradeAnswerAI(text, q, mode) {
+    async function gradeAnswerAI(text, q, mode, previousTurns) {
       if (!text) return { result: 'wrong', score: 0, feedback: '', next_question: null };
       const difficulty = mode === 'beginner' ? 'beginner'
                        : mode === 'advanced'  ? 'checkride'
                        : 'intermediate';
+      // previousTurns: array of {q, a} for earlier turns in this topic. Sent to
+      // the grader so it can judge the student's cumulative answer rather than
+      // just the latest turn in isolation.
+      const cleanedPrev = Array.isArray(previousTurns)
+        ? previousTurns.filter(t => t && t.q && t.a).map(t => ({ q: String(t.q), a: String(t.a) }))
+        : [];
       try {
         const res = await apiFetch('/api/grade', {
           method: 'POST',
@@ -2453,7 +2459,8 @@ Style:
             question: q.q,
             answer: text,
             ideal: q.ideal || '',
-            difficulty
+            difficulty,
+            previous_turns: cleanedPrev
           })
         });
         const data = await res.json();
@@ -2485,6 +2492,10 @@ Style:
         questions: shuffle(dpeBank),  // initial shuffle; reshuffled when exhausted
         index: 0,
         followupIdx: -1,              // -1 = main question; 0..N = follow-up index
+        currentTopicTurns: [],        // [{q, a}] for the current topic — so the
+                                      // grader can judge cumulatively across all
+                                      // of the student's answers, not just the
+                                      // latest turn. Reset by askMain().
         results: [],                  // per-main-question grading
         history: [],                  // chat transcript for review
         awaitingDuration: true,       // first user input is the desired duration
@@ -2587,6 +2598,7 @@ Style:
       const q = t.questions[t.index];
       t.followupIdx = -1;
       t.currentFollowup = null;
+      t.currentTopicTurns = [];  // fresh topic — clear the cumulative context
       t.history.push({ role:'dpe-q', topic: q.topic, content: q.q });
       // Quiet topic indicator in the header — no in-chat "Question N • Topic" bubble.
       document.getElementById('current-topic').textContent = q.topic;
@@ -2651,8 +2663,13 @@ Style:
       const isFollowup = t.followupIdx >= 0 && !!t.currentFollowup;
       const gradeable = isFollowup ? t.currentFollowup : q;
 
+      // Snapshot of previous Q&A turns for THIS topic before adding the current
+      // one. The grader uses this so a student who answered piece A in turn 1
+      // and piece B in turn 2 isn't penalized for not repeating A in turn 2.
+      const previousTurns = (t.currentTopicTurns || []).slice();
+
       showTyping('dpe-messages');
-      const grading = await gradeAnswerAI(text, gradeable, t.mode);
+      const grading = await gradeAnswerAI(text, gradeable, t.mode, previousTurns);
       clearTyping('dpe-messages');
 
       // Decide follow-up eligibility FIRST, so the rendered bubble and the
@@ -2708,6 +2725,11 @@ Style:
         grade: grading.result,
         ideal: gradeable.ideal || '',
       });
+
+      // Append this Q&A to the topic's running context, so any subsequent
+      // follow-up grading sees the cumulative student answer.
+      t.currentTopicTurns = t.currentTopicTurns || [];
+      t.currentTopicTurns.push({ q: gradeable.q, a: text });
 
       // Flow: if we're following up, the yellow bubble already showed the
       // question — just record the follow-up state so the next answer grades
