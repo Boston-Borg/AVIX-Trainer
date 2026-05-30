@@ -1365,6 +1365,277 @@ def grade():
     return jsonify(result)
 
 
+# ============================================================================
+#  USER STATE PERSISTENCE
+#  - oral_exam_results   : every DPE oral the user has taken (table exists)
+#  - user_preferences    : quick-starts + topics-viewed   (NEW table)
+#  - chat_sessions       : CFI chat conversations         (NEW table)
+#
+#  All endpoints below require auth. They use supabase_admin (service_role)
+#  because RLS would otherwise complicate cross-user writes from the server.
+#  Each query is explicitly scoped to request.user.id so a user can only
+#  ever read/write their own rows.
+# ============================================================================
+
+
+def _require_db():
+    """Helper to short-circuit when Supabase isn't configured."""
+    if supabase_admin is None:
+        return jsonify(error="Database not configured."), 503
+    return None
+
+
+# ---- ORAL EXAM RESULTS ----------------------------------------------------
+
+@app.route("/api/oral_exam_results", methods=["GET"])
+@require_auth
+def list_oral_exam_results():
+    """List the user's recent oral exam results.
+
+    Query params:
+        limit (int, default 10, max 50) — how many most-recent rows to return.
+
+    Returns:
+        { results: [{ id, topic, score, verdict, difficulty, feedback,
+                      created_at }, ...] }
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    try:
+        limit = int(request.args.get("limit", 10))
+    except (TypeError, ValueError):
+        limit = 10
+    limit = max(1, min(limit, 50))
+    try:
+        resp = (
+            supabase_admin.table("oral_exam_results")
+            .select("id, topic, score, verdict, difficulty, feedback, created_at")
+            .eq("user_id", str(user.id))
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return jsonify(results=resp.data or [])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to list oral_exam_results")
+        return jsonify(error=f"Read failed: {e}"), 500
+
+
+@app.route("/api/oral_exam_results", methods=["POST"])
+@require_auth
+def create_oral_exam_result():
+    """Persist a completed DPE oral.
+
+    Body:
+        { topic?: str, score: int, verdict?: str, difficulty?: str,
+          feedback?: list of per-question dicts }
+
+    Returns the inserted row.
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    data = request.get_json(silent=True) or {}
+    payload = {
+        "user_id": str(user.id),
+        "topic": (data.get("topic") or "").strip()[:120] or None,
+        "score": int(data.get("score") or 0),
+        "verdict": (data.get("verdict") or "").strip()[:32] or None,
+        "difficulty": (data.get("difficulty") or "").strip()[:32] or None,
+        "feedback": data.get("feedback") or [],
+    }
+    try:
+        resp = (
+            supabase_admin.table("oral_exam_results")
+            .insert(payload)
+            .execute()
+        )
+        return jsonify(result=(resp.data or [{}])[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to insert oral_exam_results")
+        return jsonify(error=f"Write failed: {e}"), 500
+
+
+# ---- USER PREFERENCES ----------------------------------------------------
+
+@app.route("/api/user_preferences", methods=["GET"])
+@require_auth
+def get_user_preferences():
+    """Return the caller's preferences. Lazily inserts an empty row if none."""
+    err = _require_db()
+    if err: return err
+    user = request.user
+    try:
+        resp = (
+            supabase_admin.table("user_preferences")
+            .select("quick_starts, topics_viewed, updated_at")
+            .eq("user_id", str(user.id))
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            return jsonify(preferences={"quick_starts": [], "topics_viewed": []})
+        return jsonify(preferences=rows[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to read user_preferences")
+        return jsonify(error=f"Read failed: {e}"), 500
+
+
+@app.route("/api/user_preferences", methods=["PUT"])
+@require_auth
+def put_user_preferences():
+    """Upsert the caller's preferences.
+
+    Body (any subset):
+        { quick_starts: [str, ...], topics_viewed: [str, ...] }
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    data = request.get_json(silent=True) or {}
+    payload = {"user_id": str(user.id), "updated_at": _utcnow_iso()}
+    if isinstance(data.get("quick_starts"), list):
+        payload["quick_starts"] = [str(x)[:120] for x in data["quick_starts"] if x][:50]
+    if isinstance(data.get("topics_viewed"), list):
+        payload["topics_viewed"] = sorted({str(x)[:80] for x in data["topics_viewed"] if x})[:100]
+    try:
+        resp = (
+            supabase_admin.table("user_preferences")
+            .upsert(payload, on_conflict="user_id")
+            .execute()
+        )
+        return jsonify(preferences=(resp.data or [{}])[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to upsert user_preferences")
+        return jsonify(error=f"Write failed: {e}"), 500
+
+
+# ---- CHAT SESSIONS -------------------------------------------------------
+
+@app.route("/api/chat_sessions", methods=["GET"])
+@require_auth
+def list_chat_sessions():
+    """List the caller's chat sessions. Newest first, capped at 50."""
+    err = _require_db()
+    if err: return err
+    user = request.user
+    try:
+        limit = int(request.args.get("limit", 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 200))
+    try:
+        resp = (
+            supabase_admin.table("chat_sessions")
+            .select("id, title, messages, created_at, updated_at")
+            .eq("user_id", str(user.id))
+            .order("updated_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return jsonify(sessions=resp.data or [])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to list chat_sessions")
+        return jsonify(error=f"Read failed: {e}"), 500
+
+
+@app.route("/api/chat_sessions", methods=["POST"])
+@require_auth
+def create_chat_session():
+    """Create an empty chat session and return it.
+
+    Body (optional): { title: str }
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "New chat").strip()[:120] or "New chat"
+    payload = {"user_id": str(user.id), "title": title, "messages": []}
+    try:
+        resp = (
+            supabase_admin.table("chat_sessions")
+            .insert(payload)
+            .execute()
+        )
+        return jsonify(session=(resp.data or [{}])[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to insert chat_session")
+        return jsonify(error=f"Write failed: {e}"), 500
+
+
+@app.route("/api/chat_sessions/<int:session_id>", methods=["PUT"])
+@require_auth
+def update_chat_session(session_id: int):
+    """Update an existing chat session's title and/or messages.
+
+    Body (any subset): { title: str, messages: [{role, html}, ...] }
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    data = request.get_json(silent=True) or {}
+    update: dict = {"updated_at": _utcnow_iso()}
+    if isinstance(data.get("title"), str):
+        update["title"] = data["title"].strip()[:120] or "New chat"
+    if isinstance(data.get("messages"), list):
+        # Cap message count + per-message length defensively so a runaway
+        # client can't blow up the row size.
+        cleaned: list[dict] = []
+        for m in data["messages"][-500:]:
+            if not isinstance(m, dict):
+                continue
+            role = str(m.get("role") or "bot")[:32]
+            html = str(m.get("html") or "")[:20000]
+            if role and html:
+                cleaned.append({"role": role, "html": html})
+        update["messages"] = cleaned
+    try:
+        resp = (
+            supabase_admin.table("chat_sessions")
+            .update(update)
+            .eq("id", session_id)
+            .eq("user_id", str(user.id))
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            return jsonify(error="Session not found."), 404
+        return jsonify(session=rows[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to update chat_session")
+        return jsonify(error=f"Write failed: {e}"), 500
+
+
+@app.route("/api/chat_sessions/<int:session_id>", methods=["DELETE"])
+@require_auth
+def delete_chat_session(session_id: int):
+    """Delete a chat session. Returns {ok: true} either way (idempotent)."""
+    err = _require_db()
+    if err: return err
+    user = request.user
+    try:
+        (
+            supabase_admin.table("chat_sessions")
+            .delete()
+            .eq("id", session_id)
+            .eq("user_id", str(user.id))
+            .execute()
+        )
+        return jsonify(ok=True)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to delete chat_session")
+        return jsonify(error=f"Delete failed: {e}"), 500
+
+
+def _utcnow_iso() -> str:
+    """ISO-8601 timestamp in UTC, used for updated_at fields."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 # --- Entrypoint -------------------------------------------------------------
 if __name__ == "__main__":
     # Render sets PORT; default to 8000 locally.

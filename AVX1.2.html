@@ -720,6 +720,9 @@
       document.querySelector('main').classList.remove('hidden');
       window.currentUser = user;
       window.currentTrial = trial;
+      // Hydrate per-user state once the app shell is visible. Don't await —
+      // the UI is already usable; persisted state hot-fills in the background.
+      loadUserState().catch(e => console.warn('loadUserState:', e));
       const profileBtn = document.getElementById('profile-btn');
       if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
       // Trial banner: only visible if user is on a trial (no active sub but
@@ -1073,17 +1076,212 @@
     const state = {
       view: 'home',
       progress: {
-        topicsViewed: new Set(),     // still drives the green checkmark on study cards
-        testHistory: [],             // [{score, timestamp}] — drives all three stats
+        topicsViewed: new Set(),     // green-check indicator in Resources
+        testHistory: [],             // [{score, timestamp}] — drives the three stats
       },
-      // Chat state: a list of sessions + the active one. UI is fully wired;
-      // the data layer is in-memory for now. When the AI agent is added, swap
-      // the in-memory store for a persistence backend (localStorage, server,
-      // or Cowork artifacts) — the function surface (newChat, switchChat,
-      // pushChatMsg) stays the same.
+      // Chat state: a list of sessions + the active one. Now backed by
+      // Supabase via /api/chat_sessions. Each session may have a remoteId
+      // (the integer DB id) once it's been persisted.
       chat: { sessions: [], currentId: null, quickStarts: [] },
+      // DPE-specific state. recentlyAskedSet is a Set of main-question texts
+      // the user answered correctly/partially in their last ~10 orals; we
+      // skip those in askMain unless the eligible pool is exhausted.
+      dpe: { recentSessions: [], recentlyAskedSet: null },
       test: null,
     };
+
+    // ============================================================
+    //                USER STATE PERSISTENCE (Supabase)
+    // ============================================================
+    // After login, loadUserState() hydrates state.progress, state.chat, and
+    // state.dpe from /api/user_preferences + /api/chat_sessions +
+    // /api/oral_exam_results. Save-on-change is wired into the existing
+    // mutators (newChat, pushChatMsg, removeQuickStart, openResource for
+    // study type, finishTest) via the helpers below. All save calls are
+    // best-effort — network failures are logged but never block the UI.
+    let _userStateLoaded = false;
+    let _prefsSaveTimer = null;
+
+    async function loadUserState() {
+      if (_userStateLoaded) return;
+      _userStateLoaded = true;
+      // Run the three requests in parallel — they're independent.
+      const [prefsResp, oralsResp, chatsResp] = await Promise.allSettled([
+        apiFetch('/api/user_preferences'),
+        apiFetch('/api/oral_exam_results?limit=10'),
+        apiFetch('/api/chat_sessions?limit=50'),
+      ]);
+
+      // --- Preferences ---
+      if (prefsResp.status === 'fulfilled' && prefsResp.value.ok) {
+        try {
+          const data = await prefsResp.value.json();
+          const prefs = data.preferences || {};
+          if (Array.isArray(prefs.quick_starts)) {
+            state.chat.quickStarts = prefs.quick_starts.slice();
+          }
+          if (Array.isArray(prefs.topics_viewed)) {
+            state.progress.topicsViewed = new Set(prefs.topics_viewed);
+          }
+        } catch (_) {}
+      }
+
+      // --- Oral history (most recent first) ---
+      if (oralsResp.status === 'fulfilled' && oralsResp.value.ok) {
+        try {
+          const data = await oralsResp.value.json();
+          const results = Array.isArray(data.results) ? data.results : [];
+          // Seed the progress card history (chronological asc so the
+          // "weekly improvement" trend math sees them in order).
+          state.progress.testHistory = results.slice().reverse().map(r => ({
+            score: typeof r.score === 'number' ? r.score : 0,
+            timestamp: r.created_at ? Date.parse(r.created_at) : Date.now(),
+          }));
+          state.dpe.recentSessions = results;
+          rebuildDpeDedupSet();
+          updateProgressUI();
+        } catch (_) {}
+      }
+
+      // --- Chat sessions ---
+      if (chatsResp.status === 'fulfilled' && chatsResp.value.ok) {
+        try {
+          const data = await chatsResp.value.json();
+          const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+          state.chat.sessions = sessions.map(s => ({
+            id: 'r-' + s.id,           // local string id
+            remoteId: s.id,            // DB integer
+            title: s.title || 'New chat',
+            messages: Array.isArray(s.messages) ? s.messages : [],
+            seeded: (Array.isArray(s.messages) && s.messages.length > 0),
+            createdAt: s.created_at ? Date.parse(s.created_at) : Date.now(),
+          }));
+        } catch (_) {}
+      }
+
+      // If the chat view was already opened (or about to be), make sure the
+      // sidebar reflects the loaded sessions.
+      const grid = document.getElementById('chat-history-list');
+      if (grid && state.view === 'chat') {
+        renderChatSidebar();
+        renderQuickChips();
+      }
+    }
+
+    // Rebuild the set of recently-asked main-question texts that the user
+    // answered correctly/partially. Wrong answers are explicitly NOT included
+    // so the DPE re-asks topics the student needs more practice on.
+    function rebuildDpeDedupSet() {
+      const set = new Set();
+      for (const r of (state.dpe.recentSessions || [])) {
+        const fb = Array.isArray(r.feedback) ? r.feedback : [];
+        for (const item of fb) {
+          if (!item || !item.q) continue;
+          if (item.type && item.type !== 'main') continue;  // follow-ups don't count
+          if (item.grade === 'wrong' || item.verdict === 'incorrect' || item.verdict === 'wrong') continue;
+          set.add(String(item.q));
+        }
+      }
+      state.dpe.recentlyAskedSet = set;
+    }
+
+    // Save preferences (quick_starts + topics_viewed). Debounced so that
+    // bursts of rapid changes (e.g. clicking through several Resources)
+    // collapse into a single network write.
+    function scheduleSavePreferences() {
+      if (_prefsSaveTimer) clearTimeout(_prefsSaveTimer);
+      _prefsSaveTimer = setTimeout(savePreferencesNow, 800);
+    }
+    async function savePreferencesNow() {
+      _prefsSaveTimer = null;
+      try {
+        await apiFetch('/api/user_preferences', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quick_starts: state.chat.quickStarts || [],
+            topics_viewed: Array.from(state.progress.topicsViewed || []),
+          }),
+        });
+      } catch (e) { console.warn('savePreferences failed:', e); }
+    }
+
+    // Save a finished oral exam to the backend.
+    async function saveOralResultRemote(payload) {
+      try {
+        const res = await apiFetch('/api/oral_exam_results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          // Prepend the new row to recentSessions and rebuild the dedup set.
+          const data = await res.json();
+          const row = data.result || null;
+          if (row) {
+            state.dpe.recentSessions.unshift(row);
+            state.dpe.recentSessions = state.dpe.recentSessions.slice(0, 10);
+            rebuildDpeDedupSet();
+          }
+        }
+      } catch (e) { console.warn('saveOralResult failed:', e); }
+    }
+
+    // Chat session helpers. The local session keeps an integer remoteId once
+    // it's been persisted. Updates are debounced per-session so a burst of
+    // messages collapses into one PUT.
+    const _chatSaveTimers = new Map();   // localId → setTimeout handle
+
+    async function createChatSessionRemote(localId) {
+      const local = state.chat.sessions.find(s => s.id === localId);
+      if (!local || local.remoteId) return local && local.remoteId;
+      try {
+        const res = await apiFetch('/api/chat_sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: local.title || 'New chat' }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        local.remoteId = data.session?.id || null;
+        return local.remoteId;
+      } catch (e) {
+        console.warn('createChatSession failed:', e);
+        return null;
+      }
+    }
+
+    function scheduleSaveChatSession(localId) {
+      if (_chatSaveTimers.has(localId)) clearTimeout(_chatSaveTimers.get(localId));
+      _chatSaveTimers.set(localId, setTimeout(() => saveChatSessionNow(localId), 600));
+    }
+    async function saveChatSessionNow(localId) {
+      _chatSaveTimers.delete(localId);
+      const s = state.chat.sessions.find(x => x.id === localId);
+      if (!s) return;
+      // Lazy-create the row if we haven't yet.
+      if (!s.remoteId) {
+        await createChatSessionRemote(localId);
+        if (!s.remoteId) return;     // creation failed — try again on next save
+      }
+      try {
+        await apiFetch(`/api/chat_sessions/${s.remoteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: s.title || 'New chat',
+            messages: s.messages || [],
+          }),
+        });
+      } catch (e) { console.warn('saveChatSession failed:', e); }
+    }
+    async function deleteChatSessionRemote(localId) {
+      const s = state.chat.sessions.find(x => x.id === localId);
+      if (!s || !s.remoteId) return;
+      try {
+        await apiFetch(`/api/chat_sessions/${s.remoteId}`, { method: 'DELETE' });
+      } catch (e) { console.warn('deleteChatSession failed:', e); }
+    }
 
     // ============================================================
     //                    NAVIGATION
@@ -1121,9 +1319,23 @@
     }
     function ensureChatSession() {
       if (!state.chat.sessions.length || !state.chat.currentId) {
+        // If user already has sessions persisted, prefer the most recent.
+        if (state.chat.sessions.length && !state.chat.currentId) {
+          state.chat.currentId = state.chat.sessions[0].id;
+          // Re-render the visible chat from the chosen session's messages.
+          const wrap = document.getElementById('chat-messages');
+          if (wrap) {
+            wrap.innerHTML = '';
+            for (const m of (state.chat.sessions[0].messages || [])) {
+              addMsg('chat-messages', m.role, m.html);
+            }
+          }
+          return;
+        }
         const id = newChatId();
         state.chat.sessions.unshift({
-          id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+          id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now(),
+          remoteId: null,
         });
         state.chat.currentId = id;
       }
@@ -1134,12 +1346,16 @@
     function newChat() {
       const id = newChatId();
       state.chat.sessions.unshift({
-        id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+        id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now(),
+        remoteId: null,
       });
       state.chat.currentId = id;
       document.getElementById('chat-messages').innerHTML = '';
       seedChat();
       renderChatSidebar();
+      // Persist immediately so a remoteId is available before the user sends
+      // their first message (otherwise the first save will lazy-create).
+      createChatSessionRemote(id).catch(_ => {});
       // close mobile drawer if open
       const sb = document.getElementById('chat-sidebar');
       if (sb && window.innerWidth < 768) sb.classList.add('hidden');
@@ -1185,6 +1401,9 @@
         s.title = (tmp.textContent || tmp.innerText || '').trim().slice(0, 40);
         renderChatSidebar();
       }
+      // Persist the updated transcript (debounced — a burst of user + bot
+      // turns collapses into a single PUT).
+      scheduleSaveChatSession(s.id);
     }
     document.getElementById('mobile-menu-btn').addEventListener('click', () => {
       document.getElementById('mobile-menu').classList.toggle('hidden');
@@ -1552,6 +1771,7 @@ Style:
     function removeQuickStart(i) {
       state.chat.quickStarts.splice(i, 1);
       renderQuickChips();
+      scheduleSavePreferences();
     }
 
     function startAddingQuickStart() {
@@ -1570,6 +1790,7 @@ Style:
         const v = input.value.trim();
         if (v && state.chat.quickStarts.length < QUICK_START_MAX) {
           state.chat.quickStarts.push(v);
+          scheduleSavePreferences();
         }
         renderQuickChips();
       };
@@ -1765,6 +1986,7 @@ Style:
         kindEl.textContent = 'Study Guide';
         bodyEl.innerHTML = t.studyBody;
         state.progress.topicsViewed.add(t.id);
+        scheduleSavePreferences();
         renderResourceGrid();
         lucide.createIcons();
         return;
@@ -1862,6 +2084,7 @@ Style:
             bodyEl.innerHTML = renderStudyGuide(data.content, data.citations);
             if (uiType === 'study') {
               state.progress.topicsViewed.add(t.id);
+              scheduleSavePreferences();
               renderResourceGrid();
             }
           } else if (apiKind === 'flashcards') {
@@ -2595,6 +2818,35 @@ Style:
       if (t.index >= t.questions.length) {
         t.questions = t.questions.concat(shuffle(dpeBank));
       }
+
+      // Dedup: skip questions the user has already correctly/partially answered
+      // in the last ~10 sessions. Wrong answers stay eligible (more practice).
+      // We swap the current slot with a later eligible question rather than
+      // truly removing — that way the rest of the queue still rotates through.
+      // Within this oral, also avoid re-asking what the student already got.
+      const recentSet = state.dpe.recentlyAskedSet || new Set();
+      const askedThisSessionRight = new Set(
+        t.results
+          ? t.results.filter(r => r.type === 'main' && r.grade !== 'wrong').map(r => r.q)
+          : []
+      );
+      const wasAskedRecentlyAnsweredRight = (qText) =>
+        recentSet.has(qText) || askedThisSessionRight.has(qText);
+
+      // Search forward through the queue for the first eligible question.
+      let chosenOffset = 0;
+      const horizon = t.questions.length - t.index;
+      for (let i = 0; i < horizon; i++) {
+        const cand = t.questions[t.index + i];
+        if (!wasAskedRecentlyAnsweredRight(cand.q)) { chosenOffset = i; break; }
+        chosenOffset = i;  // remember the last seen, in case all are duplicates
+      }
+      if (chosenOffset > 0) {
+        // Move the chosen question forward to the current slot.
+        const [chosen] = t.questions.splice(t.index + chosenOffset, 1);
+        t.questions.splice(t.index, 0, chosen);
+      }
+
       const q = t.questions[t.index];
       t.followupIdx = -1;
       t.currentFollowup = null;
@@ -2822,6 +3074,27 @@ Style:
 
       state.progress.testHistory.push({ score: pct, timestamp: Date.now() });
       updateProgressUI();
+
+      // Persist this oral to Supabase. The feedback payload carries enough
+      // per-question detail (q, type, grade, userAnswer) for both the history
+      // view and the DPE's recently-asked dedup logic on future sessions.
+      const overallVerdict = passed ? 'passed' : (pct >= 50 ? 'partial' : 'failed');
+      const topicLabel = (_remediationTopics && _remediationTopics.length === 1)
+        ? _remediationTopics[0]
+        : null;
+      saveOralResultRemote({
+        topic: topicLabel,
+        score: pct,
+        verdict: overallVerdict,
+        difficulty: t.cfg.label.toLowerCase(),
+        feedback: t.results.map(r => ({
+          q: r.q,
+          type: r.type,        // 'main' or 'followup'
+          topic: r.topic,
+          grade: r.grade,      // 'correct' | 'partial' | 'wrong'
+          userAnswer: r.userAnswer,
+        })),
+      });
 
       // Wrap-up message in chat
       addMsg('dpe-messages','system', `Oral complete — ${pct}% • ${passed ? 'Passed' : 'Did not pass'}`);
