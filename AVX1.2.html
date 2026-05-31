@@ -21,6 +21,29 @@
       border-radius: 14px 14px 14px 2px;
       border: 1px solid #262629;
     }
+    /* Aviation-green bubble: shown when the DPE marks an answer correct. */
+    .chat-msg-correct {
+      background: rgba(34, 197, 94, 0.10);
+      color: #ecfdf5;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(34, 197, 94, 0.55);
+    }
+    /* Aviation-yellow bubble: shown when the DPE marks an answer partial —
+       core was covered but some required detail is missing. The bubble's
+       text IS the follow-up question itself, no acknowledgment preamble. */
+    .chat-msg-partial {
+      background: rgba(234, 179, 8, 0.10);
+      color: #fefce8;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(234, 179, 8, 0.55);
+    }
+    /* Aviation-red bubble: shown when the DPE marks an answer wrong. */
+    .chat-msg-wrong {
+      background: rgba(239, 68, 68, 0.10);
+      color: #fef2f2;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(239, 68, 68, 0.55);
+    }
     .chat-msg-user {
       background: #2563eb;
       color: white;
@@ -73,10 +96,147 @@
   <span class="hidden bg-emerald-500/5 bg-amber-500/5 bg-rose-500/5
                text-emerald-400 text-amber-300 text-rose-400 text-blue-400
                border-emerald-500/40 border-amber-500/40 border-rose-500/40
-               bg-emerald-500 bg-amber-500 bg-rose-500"></span>
+               bg-emerald-500 bg-amber-500 bg-rose-500
+               bg-green-500/5 bg-green-500/10 bg-green-500/15
+               border-green-500/30 border-green-500/40 border-green-500/50 border-green-500/55
+               text-green-300 text-green-400
+               from-green-800 to-green-950
+               bg-yellow-500/5 bg-yellow-500/10 bg-yellow-500/15
+               border-yellow-500/30 border-yellow-500/40 border-yellow-500/50 border-yellow-500/55
+               text-yellow-300 text-yellow-400
+               bg-red-500/5 bg-red-500/10 bg-red-500/15
+               border-red-500/30 border-red-500/40 border-red-500/50 border-red-500/55
+               text-red-300 text-red-400
+               from-red-800 to-red-950"></span>
+
+  <!-- ============ AUTH SCREEN (shown when logged out) ============ -->
+  <!-- Starts hidden; JS on page load decides whether to show this or the app. -->
+  <section id="auth-screen" class="hidden flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      <div class="glass rounded-2xl p-8 fade-in">
+        <!-- Logo header -->
+        <div class="flex items-center justify-center gap-3 mb-6">
+          <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+          </div>
+          <div>
+            <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
+          </div>
+        </div>
+
+        <!-- Login / Signup tabs -->
+        <div class="flex gap-1 mb-6 border-b border-zinc-800">
+          <button type="button" id="auth-tab-login" onclick="switchAuthTab('login')"
+                  class="flex-1 px-4 py-2 text-sm font-medium border-b-2 border-blue-500 text-blue-400 -mb-px transition">
+            Log in
+          </button>
+          <button type="button" id="auth-tab-signup" onclick="switchAuthTab('signup')"
+                  class="flex-1 px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-100 -mb-px transition">
+            Sign up
+          </button>
+        </div>
+
+        <!-- The form (one form, the submit handler decides login vs signup) -->
+        <form id="auth-form" class="space-y-4">
+          <div>
+            <label for="auth-email" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email</label>
+            <input id="auth-email" name="email" type="email" required autocomplete="email"
+                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+          </div>
+          <div>
+            <label for="auth-password" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Password</label>
+            <input id="auth-password" name="password" type="password" required autocomplete="current-password" minlength="8"
+                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <div id="auth-pw-hint" class="text-xs text-slate-500 mt-1 hidden">At least 8 characters.</div>
+          </div>
+          <button type="submit" id="auth-submit"
+                  class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2">
+            <span id="auth-submit-text">Log in</span>
+            <i id="auth-submit-spinner" data-lucide="loader-2" class="w-4 h-4 animate-spin hidden"></i>
+          </button>
+          <div id="auth-error" class="hidden text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></div>
+          <div id="auth-success" class="hidden text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2"></div>
+        </form>
+
+        <div class="mt-6 text-center text-xs text-slate-500">
+          Your quiz scores and oral exam history are saved to your account so you can pick up where you left off.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAYWALL SCREEN (shown when logged in but no subscription) ============ -->
+  <section id="paywall-screen" class="hidden flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-lg">
+      <div class="glass rounded-2xl p-8 fade-in">
+        <!-- Header with logo + sign out -->
+        <div class="flex items-start justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
+            </div>
+          </div>
+          <button id="paywall-signout" type="button"
+                  class="text-xs text-slate-500 hover:text-slate-300 transition">Sign out</button>
+        </div>
+
+        <!-- Greeting -->
+        <div id="paywall-greeting" class="text-sm text-slate-400 mb-4"></div>
+
+        <!-- Price -->
+        <div class="text-center mb-6">
+          <div class="text-slate-300 text-sm mb-2">Unlock the full study companion</div>
+          <div class="flex items-baseline justify-center gap-1">
+            <span class="text-5xl font-bold text-slate-100">$20</span>
+            <span class="text-slate-500">/month</span>
+          </div>
+        </div>
+
+        <!-- Features -->
+        <ul class="space-y-3 mb-8 text-sm">
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">CFI Chat</strong> — ask anything, get answers grounded in FAA sources with inline citations.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">Study guides, flashcards &amp; quizzes</strong> — generated on demand for any PPL topic.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">DPE oral exam simulator</strong> — three difficulty modes from beginner to checkride.</span>
+          </li>
+          <li class="flex gap-3 items-start text-slate-300">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+            <span><strong class="text-slate-100">Progress saved across devices</strong> — pick up where you left off, anywhere.</span>
+          </li>
+        </ul>
+
+        <!-- Action -->
+        <button id="paywall-subscribe-btn" type="button"
+                class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
+          <span id="paywall-subscribe-text">Subscribe — $20/month</span>
+          <i id="paywall-subscribe-spinner" data-lucide="loader-2" class="w-4 h-4 animate-spin hidden"></i>
+        </button>
+        <div id="paywall-error" class="hidden mt-3 text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></div>
+        <div id="paywall-info"  class="hidden mt-3 text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2"></div>
+
+        <!-- Trust line -->
+        <div class="mt-6 text-center text-xs text-slate-500">
+          Secure payments by Stripe — your card never touches our servers. Cancel anytime.
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ TOP NAV ============ -->
-  <nav class="bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
+  <!-- Hidden by default; JS shows it after successful auth + subscription check. -->
+  <nav class="hidden bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16 items-center">
         <button onclick="goto('home')" class="flex items-center gap-2 hover:opacity-80 transition">
@@ -95,9 +255,26 @@
             <button onclick="goto('study')" data-nav="study" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Resources</button>
             <button onclick="goto('test')" data-nav="test" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">DPE Oral</button>
           </div>
-          <button id="profile-btn" aria-label="Profile" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
-            <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
-          </button>
+          <div class="relative">
+            <button id="profile-btn" aria-label="Profile" aria-haspopup="true" aria-expanded="false" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
+              <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
+            </button>
+            <!-- Account dropdown menu — toggled by the profile button -->
+            <div id="profile-menu" class="hidden absolute right-0 top-11 z-50 w-64 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl shadow-black/60 overflow-hidden fade-in" role="menu">
+              <div class="px-4 py-3 border-b border-zinc-900">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Signed in as</div>
+                <div id="profile-menu-email" class="text-sm text-slate-100 truncate">—</div>
+              </div>
+              <button type="button" onclick="profileMenuAction('billing')" class="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-zinc-900 transition flex items-center gap-3" role="menuitem">
+                <i data-lucide="credit-card" class="w-4 h-4 text-blue-400 flex-shrink-0"></i>
+                <span>Manage subscription</span>
+              </button>
+              <button type="button" onclick="profileMenuAction('signout')" class="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-zinc-900 transition flex items-center gap-3 border-t border-zinc-900" role="menuitem">
+                <i data-lucide="log-out" class="w-4 h-4 text-blue-400 flex-shrink-0"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
           <button id="mobile-menu-btn" class="md:hidden p-2 text-slate-300">
             <i data-lucide="menu" class="w-6 h-6 text-blue-400"></i>
           </button>
@@ -112,7 +289,28 @@
     </div>
   </nav>
 
-  <main class="flex-1">
+  <!-- ============ TRIAL BANNER (shown when user is on a free trial) ============ -->
+  <!-- Sits between the nav and the main content. JS toggles its visibility
+       and fills in the per-feature remaining counters from /api/me. -->
+  <div id="trial-banner" class="hidden bg-amber-500/10 border-b border-amber-500/30 text-amber-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-3 text-sm">
+      <div class="flex items-center gap-2">
+        <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
+        <span>
+          <strong class="text-amber-100">Free trial</strong> —
+          <span id="trial-chat-remaining"  >5 min of CFI Chat</span>,
+          <span id="trial-gen-remaining"   >1 study/quiz set</span>,
+          <span id="trial-oral-remaining"  >1 oral exam</span>
+        </span>
+      </div>
+      <button id="trial-subscribe-btn" type="button"
+              class="bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium text-xs px-3 py-1.5 rounded-md transition">
+        Subscribe — $20/mo
+      </button>
+    </div>
+  </div>
+
+  <main class="hidden flex-1">
 
     <!-- ============ HOME ============ -->
     <section id="view-home" class="view">
@@ -259,7 +457,7 @@
                     <span class="hidden sm:inline">Send</span>
                   </button>
                 </form>
-                <div class="text-[11px] text-slate-500 mt-2">Beta uses scripted responses for common topics. Anything else returns a stub. Production wires this to the Claude API.</div>
+                <div class="text-[11px] text-slate-500 mt-2">Powered by Claude. Verify safety-critical info against current FAA publications.</div>
               </div>
             </div>
           </div>
@@ -373,7 +571,7 @@
                 </div>
                 <div>
                   <div class="text-xs uppercase tracking-wider text-slate-500" id="test-mode-label">Beginner</div>
-                  <div class="text-sm font-semibold text-slate-100">Question <span id="q-current">—</span></div>
+                  <div class="text-sm font-semibold text-slate-100" id="current-topic">Practice Oral</div>
                 </div>
               </div>
               <div class="text-right">
@@ -430,22 +628,660 @@
   <!-- ============ APP SCRIPT ============ -->
   <script>
     // ============================================================
+    //                       AUTH
+    // ============================================================
+    // The login token is a JWT issued by Supabase (via our /api/login or
+    // /api/signup endpoints). We stash it in localStorage so a refresh keeps
+    // the user signed in. Every API call to /api/* sends it in the
+    // Authorization header so the backend knows who's asking.
+
+    const AUTH_TOKEN_KEY = 'avx_access_token';
+
+    function getAuthToken()  { return localStorage.getItem(AUTH_TOKEN_KEY); }
+    function setAuthToken(t) { localStorage.setItem(AUTH_TOKEN_KEY, t); }
+    function clearAuthToken(){ localStorage.removeItem(AUTH_TOKEN_KEY); }
+
+    // Drop-in replacement for fetch() that:
+    //   - attaches the Bearer token automatically
+    //   - on 401 (expired token) kicks the user back to the login screen
+    //   - on 402 (trial used up / no subscription) shows the paywall AFTER the
+    //     caller has surfaced its own error UI
+    async function apiFetch(url, options = {}) {
+      const token = getAuthToken();
+      const headers = { ...(options.headers || {}) };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(url, { ...options, headers });
+      if (res.status === 401) {
+        clearAuthToken();
+        showAuthScreen();
+        throw new Error('Your session expired. Please log in again.');
+      }
+      if (res.status === 402) {
+        // Trial used up for this feature OR no active subscription.
+        // We still return the response so the caller can show its local error,
+        // but we also fire-and-forget refresh /api/me so the banner/paywall
+        // catches up shortly. (The caller usually shows an inline error and
+        // the user can click Subscribe from the banner.)
+        try {
+          const data = await res.clone().json();
+          // Re-render the screen after a moment so the global state matches.
+          setTimeout(async () => {
+            const me = await fetchMe();
+            routeToScreen(me);
+          }, 50);
+          const err = new Error(data.error || 'Subscription required.');
+          err.status = 402;
+          err.feature = data.feature;
+          err.trial = data.trial;
+          throw err;
+        } catch (e) {
+          if (e?.status === 402) throw e;
+          // Otherwise fall through and return res for caller to handle.
+        }
+      }
+      return res;
+    }
+
+    // -------- Show / hide the three screens (auth, paywall, app) --------
+    // Exactly one of these is visible at a time. Helpers below set the right
+    // combination of hidden classes and stash the user on window.
+    function _hideAllScreens() {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('paywall-screen').classList.add('hidden');
+      document.getElementById('trial-banner').classList.add('hidden');
+      document.querySelector('nav').classList.add('hidden');
+      document.querySelector('main').classList.add('hidden');
+    }
+    function showAuthScreen() {
+      _hideAllScreens();
+      document.getElementById('auth-screen').classList.remove('hidden');
+    }
+    function showPaywallScreen(user, subscription) {
+      _hideAllScreens();
+      document.getElementById('paywall-screen').classList.remove('hidden');
+      window.currentUser = user;
+      // Personalized greeting + status-specific note.
+      const greeting = document.getElementById('paywall-greeting');
+      if (greeting && user?.email) {
+        let note = `Signed in as <strong class="text-slate-200">${user.email}</strong>.`;
+        if (subscription?.status === 'past_due') {
+          note += ' Your last payment failed — please update your card to continue.';
+        } else if (subscription?.status === 'canceled') {
+          note += ' Your subscription was canceled. Resubscribe to regain access.';
+        } else if (subscription?.status === 'trial_used') {
+          note += ' Your free trial is used up — subscribe for unlimited access.';
+        }
+        greeting.innerHTML = note;
+      }
+    }
+    function showAppShell(user, subscription, trial) {
+      _hideAllScreens();
+      document.querySelector('nav').classList.remove('hidden');
+      document.querySelector('main').classList.remove('hidden');
+      window.currentUser = user;
+      window.currentTrial = trial;
+      // Hydrate per-user state once the app shell is visible. Don't await —
+      // the UI is already usable; persisted state hot-fills in the background.
+      loadUserState().catch(e => console.warn('loadUserState:', e));
+      const profileBtn = document.getElementById('profile-btn');
+      if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
+      // Trial banner: only visible if user is on a trial (no active sub but
+      // still has at least one feature available). Owners get null trial.
+      if (trial && !subscription?.active) {
+        document.getElementById('trial-banner').classList.remove('hidden');
+        updateTrialBannerCounters(trial);
+      }
+    }
+
+    // Format the per-feature counters inside the trial banner from /api/me data.
+    function updateTrialBannerCounters(trial) {
+      const fmtSeconds = (s) => {
+        if (s <= 0) return 'expired';
+        const m = Math.floor(s / 60);
+        return m >= 1 ? `${m} min remaining` : `<1 min remaining`;
+      };
+      const chatEl = document.getElementById('trial-chat-remaining');
+      const genEl  = document.getElementById('trial-gen-remaining');
+      const oralEl = document.getElementById('trial-oral-remaining');
+      if (chatEl) {
+        chatEl.textContent = trial.chat?.expired
+          ? 'CFI Chat used'
+          : (trial.chat?.used
+              ? `CFI Chat: ${fmtSeconds(trial.chat.seconds_remaining)}`
+              : '5 min CFI Chat available');
+      }
+      if (genEl) {
+        genEl.textContent = trial.generate?.expired
+          ? 'Quizzes/study used'
+          : `${trial.generate?.remaining ?? 1} study/quiz set available`;
+      }
+      if (oralEl) {
+        oralEl.textContent = trial.oral?.expired
+          ? 'Oral exam used'
+          : (trial.oral?.used
+              ? `Oral exam: ${fmtSeconds(trial.oral.seconds_remaining)}`
+              : '1 oral exam available');
+      }
+    }
+
+    // Fetch /api/me with the saved token. Returns the full payload
+    // ({user, subscription, stripe_publishable_key}) or null if unauthenticated.
+    async function fetchMe() {
+      const token = getAuthToken();
+      if (!token) return null;
+      try {
+        const res = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) { clearAuthToken(); return null; }
+        return await res.json();
+      } catch { return null; }
+    }
+
+    // Given a /api/me response (or null), decide which screen to render.
+    // Three branches:
+    //   - active subscription → full app, no banner
+    //   - no sub but trial has any feature available → app + trial banner
+    //   - no sub and trial exhausted → paywall
+    function routeToScreen(me) {
+      if (!me) { showAuthScreen(); return null; }
+      if (me.subscription?.active) {
+        showAppShell(me.user, me.subscription, null);
+      } else if (me.trial?.any_available) {
+        showAppShell(me.user, me.subscription, me.trial);
+      } else {
+        // Trial exhausted (or never started + no sub): show paywall.
+        const sub = me.subscription || {};
+        if (me.trial && !me.trial.any_available) sub.status = 'trial_used';
+        showPaywallScreen(me.user, sub);
+      }
+      return me;
+    }
+
+    // Backwards-compat shim — older code paths still call checkAuthSession.
+    async function checkAuthSession() {
+      const me = await fetchMe();
+      return routeToScreen(me);
+    }
+
+    // -------- Login / signup tab toggle --------
+    let authMode = 'login';  // 'login' or 'signup'
+    function switchAuthTab(mode) {
+      authMode = mode;
+      const loginTab  = document.getElementById('auth-tab-login');
+      const signupTab = document.getElementById('auth-tab-signup');
+      const submitText = document.getElementById('auth-submit-text');
+      const pwHint = document.getElementById('auth-pw-hint');
+      const pwInput = document.getElementById('auth-password');
+      hideAuthMessage('error');
+      hideAuthMessage('success');
+      const activate = (tab) => {
+        tab.classList.add('border-blue-500', 'text-blue-400');
+        tab.classList.remove('border-transparent', 'text-slate-400');
+      };
+      const deactivate = (tab) => {
+        tab.classList.remove('border-blue-500', 'text-blue-400');
+        tab.classList.add('border-transparent', 'text-slate-400');
+      };
+      if (mode === 'login') {
+        activate(loginTab); deactivate(signupTab);
+        submitText.textContent = 'Log in';
+        pwHint.classList.add('hidden');
+        pwInput.setAttribute('autocomplete', 'current-password');
+      } else {
+        activate(signupTab); deactivate(loginTab);
+        submitText.textContent = 'Create account';
+        pwHint.classList.remove('hidden');
+        pwInput.setAttribute('autocomplete', 'new-password');
+      }
+    }
+
+    // -------- Inline messages on the auth form --------
+    function showAuthMessage(kind, text) {
+      const el = document.getElementById(`auth-${kind}`);
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+    function hideAuthMessage(kind) {
+      document.getElementById(`auth-${kind}`).classList.add('hidden');
+    }
+    function setAuthSubmitting(isLoading) {
+      document.getElementById('auth-submit').disabled = isLoading;
+      const spinner = document.getElementById('auth-submit-spinner');
+      if (isLoading) spinner.classList.remove('hidden');
+      else spinner.classList.add('hidden');
+    }
+
+    // -------- Form submit: login or signup --------
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      hideAuthMessage('error');
+      hideAuthMessage('success');
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      if (!email || !password) {
+        showAuthMessage('error', 'Email and password are required.');
+        return;
+      }
+      const endpoint = authMode === 'login' ? '/api/login' : '/api/signup';
+      setAuthSubmitting(true);
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        if (data.access_token) {
+          // Logged in (or signed up with email confirmation disabled).
+          // Save token, then re-fetch /api/me to get subscription status,
+          // then route to either the app or the paywall.
+          setAuthToken(data.access_token);
+          const me = await fetchMe();
+          const routed = routeToScreen(me);
+          if (routed?.subscription?.active) {
+            goto('home');
+            updateProgressUI();
+          }
+        } else if (data.message) {
+          // Signup pending — Supabase needs the user to confirm via email
+          showAuthMessage('success', data.message);
+          document.getElementById('auth-form').reset();
+        }
+      } catch (err) {
+        showAuthMessage('error', err.message);
+      } finally {
+        setAuthSubmitting(false);
+      }
+    }
+
+    // -------- Sign out --------
+    async function handleLogout() {
+      try { await apiFetch('/api/logout', { method: 'POST' }); }
+      catch { /* server-side failure is harmless; we discard the token regardless */ }
+      clearAuthToken();
+      window.currentUser = null;
+      showAuthScreen();
+    }
+
+    // Open/close helpers for the account dropdown menu.
+    function openProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      const btn  = document.getElementById('profile-btn');
+      const emailEl = document.getElementById('profile-menu-email');
+      if (!menu) return;
+      if (emailEl) emailEl.textContent = window.currentUser?.email || 'your account';
+      menu.classList.remove('hidden');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+      lucide.createIcons();
+    }
+    function closeProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      const btn  = document.getElementById('profile-btn');
+      if (!menu) return;
+      menu.classList.add('hidden');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleProfileMenu() {
+      const menu = document.getElementById('profile-menu');
+      if (!menu) return;
+      if (menu.classList.contains('hidden')) openProfileMenu();
+      else closeProfileMenu();
+    }
+
+    // Dispatcher for the dropdown's menu items. Hides the menu first so the
+    // UI feels snappy even if the action triggers a navigation/redirect.
+    async function profileMenuAction(action) {
+      closeProfileMenu();
+      if (action === 'signout') {
+        handleLogout();
+      } else if (action === 'billing') {
+        await openBillingPortal();
+      }
+    }
+
+    // Wire up the auth UI. Called once from the page-load handler at the bottom.
+    function initAuthUI() {
+      document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+
+      const profileBtn = document.getElementById('profile-btn');
+      if (profileBtn) {
+        profileBtn.addEventListener('click', (e) => {
+          // Stop the event from bubbling to the document handler that closes
+          // the menu when clicking outside.
+          e.stopPropagation();
+          toggleProfileMenu();
+        });
+      }
+
+      // Click anywhere outside the dropdown to close it.
+      document.addEventListener('click', (e) => {
+        const menu = document.getElementById('profile-menu');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (menu.contains(e.target)) return;  // clicks inside the menu close via the action handler
+        closeProfileMenu();
+      });
+
+      // Esc closes the menu.
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeProfileMenu();
+      });
+    }
+
+
+    // ============================================================
+    //                       PAYWALL / STRIPE
+    // ============================================================
+    // Subscribe button → asks the backend to create a Stripe Checkout session,
+    // then redirects the whole page to Stripe's hosted checkout. After payment
+    // Stripe redirects back to /?checkout=success&session_id=... where
+    // handleCheckoutReturn() picks up and syncs the subscription.
+
+    function showPaywallMessage(kind, text) {
+      const el = document.getElementById(`paywall-${kind}`);
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+    function hidePaywallMessage(kind) {
+      document.getElementById(`paywall-${kind}`)?.classList.add('hidden');
+    }
+    function setPaywallSubmitting(isLoading) {
+      const btn = document.getElementById('paywall-subscribe-btn');
+      const spinner = document.getElementById('paywall-subscribe-spinner');
+      if (btn) btn.disabled = isLoading;
+      if (spinner) {
+        if (isLoading) spinner.classList.remove('hidden');
+        else spinner.classList.add('hidden');
+      }
+    }
+
+    async function handleSubscribeClick() {
+      hidePaywallMessage('error');
+      hidePaywallMessage('info');
+      setPaywallSubmitting(true);
+      try {
+        const res = await apiFetch('/api/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
+        if (!data.url) throw new Error('No checkout URL returned.');
+        // Redirect to Stripe — the rest happens off-site.
+        window.location.href = data.url;
+      } catch (err) {
+        showPaywallMessage('error', err.message);
+        setPaywallSubmitting(false);
+      }
+    }
+
+    async function openBillingPortal() {
+      try {
+        const res = await apiFetch('/api/stripe/portal', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not open billing portal.');
+        if (data.url) window.location.href = data.url;
+      } catch (err) {
+        alert(`Could not open billing portal: ${err.message}`);
+      }
+    }
+
+    function initPaywallUI() {
+      document.getElementById('paywall-subscribe-btn')
+        ?.addEventListener('click', handleSubscribeClick);
+      document.getElementById('paywall-signout')
+        ?.addEventListener('click', handleLogout);
+      // Trial banner's Subscribe button — same action as the paywall's.
+      document.getElementById('trial-subscribe-btn')
+        ?.addEventListener('click', handleSubscribeClick);
+    }
+
+    // Reads ?checkout=... from the URL after Stripe redirects back. If the
+    // user just paid successfully, hand the session_id to the backend so it
+    // can mirror the subscription into our DB *without waiting for webhooks*.
+    // Returns true if the URL changed (so the caller should re-fetch /api/me).
+    async function handleCheckoutReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const checkout = params.get('checkout');
+      const sessionId = params.get('session_id');
+      if (!checkout) return false;
+      // Clean the URL so a refresh doesn't re-run this.
+      window.history.replaceState({}, '', window.location.pathname);
+      if (checkout === 'success' && sessionId) {
+        try {
+          await apiFetch('/api/stripe/sync-after-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+        } catch (err) {
+          console.warn('Subscription sync failed:', err);
+        }
+        return true;
+      }
+      if (checkout === 'cancel') {
+        // Show a friendly note on the paywall once we render it.
+        window._pendingPaywallNote = 'Checkout canceled. You can subscribe whenever you\'re ready.';
+        return false;
+      }
+      return false;
+    }
+
+
+    // ============================================================
     //                    APP STATE
     // ============================================================
     const state = {
       view: 'home',
       progress: {
-        topicsViewed: new Set(),     // still drives the green checkmark on study cards
-        testHistory: [],             // [{score, timestamp}] — drives all three stats
+        topicsViewed: new Set(),     // green-check indicator in Resources
+        testHistory: [],             // [{score, timestamp}] — drives the three stats
       },
-      // Chat state: a list of sessions + the active one. UI is fully wired;
-      // the data layer is in-memory for now. When the AI agent is added, swap
-      // the in-memory store for a persistence backend (localStorage, server,
-      // or Cowork artifacts) — the function surface (newChat, switchChat,
-      // pushChatMsg) stays the same.
+      // Chat state: a list of sessions + the active one. Now backed by
+      // Supabase via /api/chat_sessions. Each session may have a remoteId
+      // (the integer DB id) once it's been persisted.
       chat: { sessions: [], currentId: null, quickStarts: [] },
+      // DPE-specific state. recentlyAskedSet is a Set of main-question texts
+      // the user answered correctly/partially in their last ~10 orals; we
+      // skip those in askMain unless the eligible pool is exhausted.
+      dpe: { recentSessions: [], recentlyAskedSet: null },
       test: null,
     };
+
+    // ============================================================
+    //                USER STATE PERSISTENCE (Supabase)
+    // ============================================================
+    // After login, loadUserState() hydrates state.progress, state.chat, and
+    // state.dpe from /api/user_preferences + /api/chat_sessions +
+    // /api/oral_exam_results. Save-on-change is wired into the existing
+    // mutators (newChat, pushChatMsg, removeQuickStart, openResource for
+    // study type, finishTest) via the helpers below. All save calls are
+    // best-effort — network failures are logged but never block the UI.
+    let _userStateLoaded = false;
+    let _prefsSaveTimer = null;
+
+    async function loadUserState() {
+      if (_userStateLoaded) return;
+      _userStateLoaded = true;
+      // Run the three requests in parallel — they're independent.
+      const [prefsResp, oralsResp, chatsResp] = await Promise.allSettled([
+        apiFetch('/api/user_preferences'),
+        apiFetch('/api/oral_exam_results?limit=10'),
+        apiFetch('/api/chat_sessions?limit=50'),
+      ]);
+
+      // --- Preferences ---
+      if (prefsResp.status === 'fulfilled' && prefsResp.value.ok) {
+        try {
+          const data = await prefsResp.value.json();
+          const prefs = data.preferences || {};
+          if (Array.isArray(prefs.quick_starts)) {
+            state.chat.quickStarts = prefs.quick_starts.slice();
+          }
+          if (Array.isArray(prefs.topics_viewed)) {
+            state.progress.topicsViewed = new Set(prefs.topics_viewed);
+          }
+        } catch (_) {}
+      }
+
+      // --- Oral history (most recent first) ---
+      if (oralsResp.status === 'fulfilled' && oralsResp.value.ok) {
+        try {
+          const data = await oralsResp.value.json();
+          const results = Array.isArray(data.results) ? data.results : [];
+          // Seed the progress card history (chronological asc so the
+          // "weekly improvement" trend math sees them in order).
+          state.progress.testHistory = results.slice().reverse().map(r => ({
+            score: typeof r.score === 'number' ? r.score : 0,
+            timestamp: r.created_at ? Date.parse(r.created_at) : Date.now(),
+          }));
+          state.dpe.recentSessions = results;
+          rebuildDpeDedupSet();
+          updateProgressUI();
+        } catch (_) {}
+      }
+
+      // --- Chat sessions ---
+      if (chatsResp.status === 'fulfilled' && chatsResp.value.ok) {
+        try {
+          const data = await chatsResp.value.json();
+          const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+          state.chat.sessions = sessions.map(s => ({
+            id: 'r-' + s.id,           // local string id
+            remoteId: s.id,            // DB integer
+            title: s.title || 'New chat',
+            messages: Array.isArray(s.messages) ? s.messages : [],
+            seeded: (Array.isArray(s.messages) && s.messages.length > 0),
+            createdAt: s.created_at ? Date.parse(s.created_at) : Date.now(),
+          }));
+        } catch (_) {}
+      }
+
+      // If the chat view was already opened (or about to be), make sure the
+      // sidebar reflects the loaded sessions.
+      const grid = document.getElementById('chat-history-list');
+      if (grid && state.view === 'chat') {
+        renderChatSidebar();
+        renderQuickChips();
+      }
+    }
+
+    // Rebuild the set of recently-asked main-question texts that the user
+    // answered correctly/partially. Wrong answers are explicitly NOT included
+    // so the DPE re-asks topics the student needs more practice on.
+    function rebuildDpeDedupSet() {
+      const set = new Set();
+      for (const r of (state.dpe.recentSessions || [])) {
+        const fb = Array.isArray(r.feedback) ? r.feedback : [];
+        for (const item of fb) {
+          if (!item || !item.q) continue;
+          if (item.type && item.type !== 'main') continue;  // follow-ups don't count
+          if (item.grade === 'wrong' || item.verdict === 'incorrect' || item.verdict === 'wrong') continue;
+          set.add(String(item.q));
+        }
+      }
+      state.dpe.recentlyAskedSet = set;
+    }
+
+    // Save preferences (quick_starts + topics_viewed). Debounced so that
+    // bursts of rapid changes (e.g. clicking through several Resources)
+    // collapse into a single network write.
+    function scheduleSavePreferences() {
+      if (_prefsSaveTimer) clearTimeout(_prefsSaveTimer);
+      _prefsSaveTimer = setTimeout(savePreferencesNow, 800);
+    }
+    async function savePreferencesNow() {
+      _prefsSaveTimer = null;
+      try {
+        await apiFetch('/api/user_preferences', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quick_starts: state.chat.quickStarts || [],
+            topics_viewed: Array.from(state.progress.topicsViewed || []),
+          }),
+        });
+      } catch (e) { console.warn('savePreferences failed:', e); }
+    }
+
+    // Save a finished oral exam to the backend.
+    async function saveOralResultRemote(payload) {
+      try {
+        const res = await apiFetch('/api/oral_exam_results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          // Prepend the new row to recentSessions and rebuild the dedup set.
+          const data = await res.json();
+          const row = data.result || null;
+          if (row) {
+            state.dpe.recentSessions.unshift(row);
+            state.dpe.recentSessions = state.dpe.recentSessions.slice(0, 10);
+            rebuildDpeDedupSet();
+          }
+        }
+      } catch (e) { console.warn('saveOralResult failed:', e); }
+    }
+
+    // Chat session helpers. The local session keeps an integer remoteId once
+    // it's been persisted. Updates are debounced per-session so a burst of
+    // messages collapses into one PUT.
+    const _chatSaveTimers = new Map();   // localId → setTimeout handle
+
+    async function createChatSessionRemote(localId) {
+      const local = state.chat.sessions.find(s => s.id === localId);
+      if (!local || local.remoteId) return local && local.remoteId;
+      try {
+        const res = await apiFetch('/api/chat_sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: local.title || 'New chat' }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        local.remoteId = data.session?.id || null;
+        return local.remoteId;
+      } catch (e) {
+        console.warn('createChatSession failed:', e);
+        return null;
+      }
+    }
+
+    function scheduleSaveChatSession(localId) {
+      if (_chatSaveTimers.has(localId)) clearTimeout(_chatSaveTimers.get(localId));
+      _chatSaveTimers.set(localId, setTimeout(() => saveChatSessionNow(localId), 600));
+    }
+    async function saveChatSessionNow(localId) {
+      _chatSaveTimers.delete(localId);
+      const s = state.chat.sessions.find(x => x.id === localId);
+      if (!s) return;
+      // Lazy-create the row if we haven't yet.
+      if (!s.remoteId) {
+        await createChatSessionRemote(localId);
+        if (!s.remoteId) return;     // creation failed — try again on next save
+      }
+      try {
+        await apiFetch(`/api/chat_sessions/${s.remoteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: s.title || 'New chat',
+            messages: s.messages || [],
+          }),
+        });
+      } catch (e) { console.warn('saveChatSession failed:', e); }
+    }
+    async function deleteChatSessionRemote(localId) {
+      const s = state.chat.sessions.find(x => x.id === localId);
+      if (!s || !s.remoteId) return;
+      try {
+        await apiFetch(`/api/chat_sessions/${s.remoteId}`, { method: 'DELETE' });
+      } catch (e) { console.warn('deleteChatSession failed:', e); }
+    }
 
     // ============================================================
     //                    NAVIGATION
@@ -483,9 +1319,23 @@
     }
     function ensureChatSession() {
       if (!state.chat.sessions.length || !state.chat.currentId) {
+        // If user already has sessions persisted, prefer the most recent.
+        if (state.chat.sessions.length && !state.chat.currentId) {
+          state.chat.currentId = state.chat.sessions[0].id;
+          // Re-render the visible chat from the chosen session's messages.
+          const wrap = document.getElementById('chat-messages');
+          if (wrap) {
+            wrap.innerHTML = '';
+            for (const m of (state.chat.sessions[0].messages || [])) {
+              addMsg('chat-messages', m.role, m.html);
+            }
+          }
+          return;
+        }
         const id = newChatId();
         state.chat.sessions.unshift({
-          id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+          id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now(),
+          remoteId: null,
         });
         state.chat.currentId = id;
       }
@@ -496,12 +1346,16 @@
     function newChat() {
       const id = newChatId();
       state.chat.sessions.unshift({
-        id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now()
+        id, title: 'New chat', messages: [], seeded: false, createdAt: Date.now(),
+        remoteId: null,
       });
       state.chat.currentId = id;
       document.getElementById('chat-messages').innerHTML = '';
       seedChat();
       renderChatSidebar();
+      // Persist immediately so a remoteId is available before the user sends
+      // their first message (otherwise the first save will lazy-create).
+      createChatSessionRemote(id).catch(_ => {});
       // close mobile drawer if open
       const sb = document.getElementById('chat-sidebar');
       if (sb && window.innerWidth < 768) sb.classList.add('hidden');
@@ -547,6 +1401,9 @@
         s.title = (tmp.textContent || tmp.innerText || '').trim().slice(0, 40);
         renderChatSidebar();
       }
+      // Persist the updated transcript (debounced — a burst of user + bot
+      // turns collapses into a single PUT).
+      scheduleSaveChatSession(s.id);
     }
     document.getElementById('mobile-menu-btn').addEventListener('click', () => {
       document.getElementById('mobile-menu').classList.toggle('hidden');
@@ -776,7 +1633,21 @@
       const div = document.createElement('div');
       div.className = 'fade-in flex ' + (role === 'user' ? 'justify-end' : (role === 'system' ? 'justify-center' : 'justify-start'));
       const inner = document.createElement('div');
-      const cls = role === 'user' ? 'chat-msg-user' : (role === 'system' ? 'chat-msg-system' : 'chat-msg-bot');
+      // Roles understood by addMsg:
+      //   'user'        — user message bubble (blue, right-aligned)
+      //   'bot'         — default bot bubble (dark, left-aligned)
+      //   'bot-correct' — DPE feedback when verdict = correct (aviation green)
+      //   'bot-partial' — DPE follow-up when verdict = partial (aviation yellow);
+      //                   the bubble's text IS the next question, no preamble.
+      //   'bot-wrong'   — DPE feedback when verdict = wrong  (aviation red)
+      //   'system'      — small dashed status line (centered)
+      let cls;
+      if (role === 'user') cls = 'chat-msg-user';
+      else if (role === 'system') cls = 'chat-msg-system';
+      else if (role === 'bot-correct') cls = 'chat-msg-correct';
+      else if (role === 'bot-partial') cls = 'chat-msg-partial';
+      else if (role === 'bot-wrong') cls = 'chat-msg-wrong';
+      else cls = 'chat-msg-bot';
       inner.className = cls + ' max-w-[85%] px-4 py-3 text-sm shadow-sm';
       inner.innerHTML = html;
       div.appendChild(inner);
@@ -798,15 +1669,61 @@
       if (t) t.remove();
     }
 
-    // Claude API integration stub.
-    // Replace this when going live; signature returns Promise<string>.
-    //   const r = await fetch('/api/cfi', { method:'POST', body: JSON.stringify({ message, history }) });
-    //   const { reply } = await r.json();  return reply;
+    // Claude API integration — calls the Flask backend at /api/chat,
+    // which holds the API key and forwards the request to Anthropic.
+    // The backend expects: { messages: [{role, content}, ...], system: "..." }
+    // and returns { reply: "...", model: "..." }.
+    const CFI_SYSTEM_PROMPT = `You are AVIX, an FAA-accurate Certified Flight Instructor (CFI) coaching a student pilot for the Private Pilot License (PPL) checkride.
+
+Style:
+- Maintain a semi-formal, professional instructor tone. Speak as a knowledgeable CFI would speak with a student in a ground school setting.
+- Avoid colloquialisms and casual idioms (e.g., "bite you", "gonna", "sweat it", "no biggie", "ace it", "crush it", "watch out for", "tricky bits"). Use straightforward, precise language instead.
+- Conversational but professional. No filler.
+- When citing rules, reference the specific FAR (e.g., "14 CFR 91.155") or AIM section.
+- Use **bold** for key terms and acronyms.
+- Keep answers focused — short answer first, then detail if useful.
+- If a question is outside PPL aviation, redirect briefly back to the curriculum.`;
+
     async function sendToClaudeAPI(message, history) {
-      const scripted = findCfiReply(message);
-      await new Promise(r => setTimeout(r, 600 + Math.random() * 500));
-      if (scripted) return scripted;
-      return `That's a good question. In the production build I'll call the Claude API for a tailored explanation. For now, try one of the quick-start chips above — those topics are scripted in this beta. Specifically, I have answers ready on: <em>airspace, VFR minimums, METARs, stalls, engine failures, navigation, regulations, density altitude, transponders, and aeromedical factors</em>.`;
+      // Convert UI history to the Anthropic format and strip HTML.
+      // history items look like: { role: 'user' | 'bot' | 'system', html: '...' }
+      const stripHtml = (html) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return (tmp.textContent || tmp.innerText || '').trim();
+      };
+      const messages = history
+        .filter(m => m.role === 'user' || m.role === 'bot')
+        .map(m => ({
+          role: m.role === 'bot' ? 'assistant' : 'user',
+          content: stripHtml(m.html)
+        }))
+        .filter(m => m.content.length > 0);
+
+      try {
+        const res = await apiFetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        return formatClaudeReply(data.reply || '');
+      } catch (err) {
+        return `<span class="text-rose-400"><strong>Error:</strong> ${escapeHtml(err.message)}</span><br><span class="text-slate-500 text-xs">Make sure the Flask server is running and your API key is set in .env.</span>`;
+      }
+    }
+
+    // Render a plain-text/Markdown-ish Claude reply as safe HTML.
+    // We escape first (so the model can't inject HTML), then re-introduce
+    // a small whitelist of formatting: **bold**, *italic*, `code`, newlines.
+    function formatClaudeReply(text) {
+      const esc = escapeHtml(text);
+      return esc
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/`([^`\n]+?)`/g, '<code class="bg-zinc-800 px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(/\n/g, '<br>');
     }
     document.getElementById('chat-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -854,6 +1771,7 @@
     function removeQuickStart(i) {
       state.chat.quickStarts.splice(i, 1);
       renderQuickChips();
+      scheduleSavePreferences();
     }
 
     function startAddingQuickStart() {
@@ -872,6 +1790,7 @@
         const v = input.value.trim();
         if (v && state.chat.quickStarts.length < QUICK_START_MAX) {
           state.chat.quickStarts.push(v);
+          scheduleSavePreferences();
         }
         renderQuickChips();
       };
@@ -1055,27 +1974,460 @@
       const titleEl = document.getElementById('resource-detail-title');
       const bodyEl = document.getElementById('resource-detail-body');
 
-      titleEl.textContent = t.name;
+      // Reset flashcard state so the keyboard handler doesn't act on stale data
+      // when the user opens a study guide or quiz after a flashcard session.
+      _fc = null;
 
+      titleEl.textContent = t.name;
+      document.getElementById('resource-detail').classList.remove('hidden');
+
+      // Pre-written study guides win over generation when available.
       if (type === 'study' && t.studyBody) {
         kindEl.textContent = 'Study Guide';
         bodyEl.innerHTML = t.studyBody;
         state.progress.topicsViewed.add(t.id);
+        scheduleSavePreferences();
         renderResourceGrid();
-      } else if (type === 'flashcards') {
-        kindEl.textContent = 'Flash Cards';
-        bodyEl.innerHTML = comingSoonStub('Flash cards', t.name, 'layers');
-      } else if (type === 'quizzes') {
-        kindEl.textContent = 'Quiz';
-        bodyEl.innerHTML = comingSoonStub('Quiz questions', t.name, 'check-square');
-      } else {
-        // Study with no body yet
-        kindEl.textContent = 'Study Guide';
-        bodyEl.innerHTML = comingSoonStub('Study guide', t.name, 'book-open');
+        lucide.createIcons();
+        return;
       }
 
-      document.getElementById('resource-detail').classList.remove('hidden');
+      // Map UI type → API kind.
+      const apiKind = type === 'flashcards' ? 'flashcards'
+                    : type === 'quizzes'    ? 'quiz'
+                    : 'study';
+      const labelMap = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      kindEl.textContent = labelMap[apiKind];
+
+      // Study guides generate immediately; quiz + flashcards ask for length first.
+      if (apiKind === 'study') {
+        bodyEl.innerHTML = generatingStub(labelMap.study, t.name);
+        lucide.createIcons();
+        runGeneration(apiKind, t, bodyEl, type);
+      } else {
+        bodyEl.innerHTML = renderLengthPicker(apiKind, t.name, t.id);
+        lucide.createIcons();
+      }
+    }
+
+    // Called by the buttons inside renderLengthPicker. Also handles the special
+    // 'remediation' topicId used by the post-oral review buttons — that path
+    // takes the topic *name* from `_remediationTopicLabel` instead of looking
+    // up the resourceTopics array.
+    function startGeneration(apiKind, topicId, count) {
+      let t;
+      if (topicId === 'remediation' && _remediationTopicLabel) {
+        t = { id: 'remediation', name: _remediationTopicLabel };
+      } else {
+        t = resourceTopics.find(x => x.id === topicId);
+        if (!t) return;
+      }
+      const labelMap = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      const bodyEl = document.getElementById('resource-detail-body');
+      bodyEl.innerHTML = generatingStub(`${count} ${labelMap[apiKind]}`, t.name);
       lucide.createIcons();
+      runGeneration(apiKind, t, bodyEl, apiKind === 'flashcards' ? 'flashcards' : 'quizzes', count);
+    }
+
+    // ---- DPE post-oral remediation -----------------------------------------
+    // After a DPE oral, the results screen offers 4 "review" links scoped to
+    // whichever topics the student got wrong. `_remediationTopics` is the list
+    // of topic names ("Airspace", "Weather", etc.) populated in finishTest.
+    // `_remediationTopicLabel` is the joined string passed to the generation API.
+    let _remediationTopics = [];
+    let _remediationTopicLabel = '';
+
+    function cfiReviewWeakTopics() {
+      if (!_remediationTopics.length) {
+        // Defensive fallback — the button shouldn't be visible without weak topics.
+        quickAsk("I just completed a DPE practice oral. What are common weak areas I should be sure to review before my checkride?");
+        return;
+      }
+      const list = _remediationTopics.length === 1
+        ? _remediationTopics[0]
+        : _remediationTopics.slice(0, -1).join(', ') + ', and ' + _remediationTopics[_remediationTopics.length - 1];
+      quickAsk(`I just took a DPE practice oral and answered questions incorrectly in the following topic areas: ${list}. Please walk me through each topic in detail, starting with the most safety-critical. Cite the relevant FAA references where helpful.`);
+    }
+
+    function remediateWithResource(apiKind) {
+      if (!_remediationTopics.length) return;
+      const topicLabel = _remediationTopics.join(', ');
+      _remediationTopicLabel = topicLabel;
+
+      // Clear any flashcard state from a previous resource session.
+      _fc = null;
+
+      // Open the resource detail modal.
+      const kindLabels = { study: 'Study Guide', flashcards: 'Flash Cards', quiz: 'Quiz' };
+      document.getElementById('resource-detail-kind').textContent = kindLabels[apiKind] + ' — Review';
+      document.getElementById('resource-detail-title').textContent = topicLabel;
+      document.getElementById('resource-detail').classList.remove('hidden');
+
+      const bodyEl = document.getElementById('resource-detail-body');
+      if (apiKind === 'study') {
+        // Study guide: one shot, no length choice.
+        bodyEl.innerHTML = generatingStub('Study guide', topicLabel);
+        lucide.createIcons();
+        runGeneration('study', { id: 'remediation', name: topicLabel }, bodyEl, 'study', 1);
+      } else {
+        // Flash cards / quiz: show the length picker, which will call back into
+        // startGeneration with topicId='remediation'.
+        bodyEl.innerHTML = renderLengthPicker(apiKind, topicLabel, 'remediation');
+        lucide.createIcons();
+      }
+    }
+
+    function runGeneration(apiKind, t, bodyEl, uiType, count) {
+      generateResource(apiKind, t.name, count)
+        .then(data => {
+          if (apiKind === 'study') {
+            bodyEl.innerHTML = renderStudyGuide(data.content, data.citations);
+            if (uiType === 'study') {
+              state.progress.topicsViewed.add(t.id);
+              scheduleSavePreferences();
+              renderResourceGrid();
+            }
+          } else if (apiKind === 'flashcards') {
+            bodyEl.innerHTML = renderFlashcards(data.items, data.citations);
+          } else if (apiKind === 'quiz') {
+            bodyEl.innerHTML = renderQuiz(data.items, data.citations);
+          }
+          lucide.createIcons();
+        })
+        .catch(err => {
+          bodyEl.innerHTML = errorStub(err.message);
+          lucide.createIcons();
+        });
+    }
+
+    async function generateResource(kind, topic, count) {
+      const body = { kind, topic };
+      if (typeof count === 'number') body.count = count;
+      const res = await apiFetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      return data;
+    }
+
+    function renderLengthPicker(apiKind, topic, topicId) {
+      const isQuiz = apiKind === 'quiz';
+      const label = isQuiz ? 'questions' : 'cards';
+      const presets = isQuiz ? [5, 10, 15, 25, 50] : [5, 8, 12, 20, 40];
+      const icon = isQuiz ? 'check-square' : 'layers';
+      const heading = isQuiz ? 'How many questions?' : 'How many cards?';
+      const safeId = String(topicId).replace(/'/g, "\\'");
+      const safeTopic = escapeHtml(topic);
+
+      const buttons = presets.map(n => `
+        <button onclick="startGeneration('${apiKind}', '${safeId}', ${n})" class="px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:bg-zinc-800 text-slate-200 font-semibold transition">
+          ${n}
+        </button>
+      `).join('');
+
+      return `
+        <div class="max-w-md mx-auto py-6">
+          <div class="text-center mb-6">
+            <div class="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 mx-auto">
+              <i data-lucide="${icon}" class="w-7 h-7 text-blue-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-1">${safeTopic}</h3>
+            <p class="text-sm text-slate-400">${heading}</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            ${buttons}
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <input type="number" id="custom-count" min="1" max="50" placeholder="Custom (1-50)" class="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-slate-200 placeholder:text-slate-500 text-sm focus:outline-none focus:border-blue-500/60" />
+            <button onclick="(function(){const n=parseInt(document.getElementById('custom-count').value,10); if(n>=1&&n<=50) startGeneration('${apiKind}','${safeId}',n);})()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">Go</button>
+          </div>
+          <div class="text-center text-[11px] text-slate-500 mt-3">Larger sets take longer to generate (~10-25 seconds for 25+ ${label}).</div>
+        </div>
+      `;
+    }
+
+    function generatingStub(kindLabel, topic) {
+      return `<div class="text-center py-12">
+        <div class="inline-flex flex-col items-center max-w-md">
+          <div class="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
+            <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+          </div>
+          <div class="text-lg font-semibold text-slate-200 mb-2">Generating ${escapeHtml(kindLabel)}</div>
+          <div class="text-sm text-slate-400 leading-relaxed">Pulling FAA references for <strong class="text-slate-200">${escapeHtml(topic)}</strong>… this usually takes 5-10 seconds.</div>
+        </div>
+      </div>`;
+    }
+
+    function errorStub(msg) {
+      return `<div class="text-center py-10">
+        <div class="inline-flex flex-col items-center max-w-md">
+          <div class="w-14 h-14 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-4">
+            <i data-lucide="alert-triangle" class="w-7 h-7 text-rose-400"></i>
+          </div>
+          <div class="text-lg font-semibold text-slate-200 mb-2">Couldn't generate this</div>
+          <div class="text-sm text-rose-300 leading-relaxed">${escapeHtml(msg)}</div>
+        </div>
+      </div>`;
+    }
+
+    // Render a Markdown-ish study guide. We're not pulling a full Markdown
+    // library — just hit the common cases (headings, bold, italic, lists,
+    // line breaks). escapeHtml first to keep model output safe.
+    function renderStudyGuide(markdown, citations) {
+      let html = escapeHtml(markdown || '')
+        .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold text-slate-100 mt-5 mb-2">$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-slate-100 mt-6 mb-3">$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-slate-100 mt-6 mb-4">$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-100">$1</strong>')
+        .replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/`([^`\n]+?)`/g, '<code class="bg-zinc-800 px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-slate-300">$1</li>')
+        .replace(/(<li[^>]*>.+<\/li>(?:\s*\n)?)+/g, m => `<ul class="my-2 space-y-1">${m}</ul>`)
+        .replace(/\n\n/g, '</p><p class="text-slate-300 my-2">')
+        .replace(/\n/g, '<br>');
+      html = `<div class="prose-dark"><p class="text-slate-300 my-2">${html}</p></div>`;
+      return html + citationFooter(citations);
+    }
+
+    // ---- Quizlet-style flash cards -----------------------------------------
+    // One card at a time. Click the card or press Space to flip. Arrow keys
+    // navigate. State lives in `_fc` and gets rebuilt into #flashcard-deck
+    // each time it changes.
+    let _fc = null;  // { cards: [{q,a}], idx: 0, flipped: false, citations: [] }
+
+    function renderFlashcards(cards, citations) {
+      if (!Array.isArray(cards) || cards.length === 0) {
+        return errorStub('No flash cards were generated.');
+      }
+      _fc = { cards, idx: 0, flipped: false, citations: citations || [] };
+      return `<div id="flashcard-deck">${renderFlashcardView()}</div>`
+           + citationFooter(citations);
+    }
+
+    function renderFlashcardView() {
+      if (!_fc) return '';
+      const { cards, idx, flipped } = _fc;
+      const card = cards[idx];
+      const front = escapeHtml(card.q || '').replace(/\n/g, '<br>');
+      const back  = escapeHtml(card.a || '').replace(/\n/g, '<br>');
+
+      // Progress dots — up to 30 visible, otherwise just a fraction
+      const showDots = cards.length <= 30;
+      const dots = showDots
+        ? cards.map((_, i) => `<span class="w-1.5 h-1.5 rounded-full ${i === idx ? 'bg-blue-400' : 'bg-zinc-700'}"></span>`).join('')
+        : `<span class="text-xs text-slate-400 font-mono">${idx + 1} / ${cards.length}</span>`;
+
+      return `
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Card ${idx + 1} of ${cards.length}</div>
+          <button onclick="restartFlashcards()" class="text-xs text-blue-400 hover:text-blue-300 underline" title="Back to the first card">Restart</button>
+        </div>
+
+        <button id="flashcard-button"
+                onclick="flipFlashcard()"
+                aria-label="Flashcard — click to flip"
+                class="block w-full min-h-[260px] md:min-h-[320px] p-6 md:p-10 mb-5 rounded-2xl bg-zinc-900 border-2 ${flipped ? 'border-blue-500/60' : 'border-zinc-800'} hover:border-blue-500/60 transition text-left flex flex-col justify-between focus:outline-none focus:border-blue-500">
+          <div>
+            <div class="text-[10px] uppercase tracking-wider ${flipped ? 'text-blue-400' : 'text-slate-500'} font-semibold mb-3">${flipped ? 'Answer' : 'Question'}</div>
+            <div class="${flipped ? 'text-slate-100 text-base md:text-lg leading-relaxed' : 'text-slate-100 text-lg md:text-xl font-semibold leading-snug'}">
+              ${flipped ? back : front}
+            </div>
+          </div>
+          <div class="mt-6 text-xs text-slate-500 text-center">
+            ${flipped ? 'Click or press Space to see the question' : 'Click or press Space to reveal the answer'}
+          </div>
+        </button>
+
+        <div class="flex items-center justify-between gap-3">
+          <button onclick="prevFlashcard()" ${idx === 0 ? 'disabled' : ''}
+                  class="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 disabled:opacity-30 disabled:cursor-not-allowed text-slate-200 font-semibold inline-flex items-center gap-2 transition">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i> Previous
+          </button>
+
+          <div class="flex items-center gap-1.5 flex-wrap justify-center max-w-[60%]">
+            ${dots}
+          </div>
+
+          <button onclick="nextFlashcard()" ${idx === cards.length - 1 ? 'disabled' : ''}
+                  class="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 disabled:opacity-30 disabled:cursor-not-allowed text-slate-200 font-semibold inline-flex items-center gap-2 transition">
+            Next <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="mt-4 text-center text-[11px] text-slate-500">
+          Space = flip &nbsp;·&nbsp; ← → = previous / next
+        </div>
+      `;
+    }
+
+    function updateFlashcardView() {
+      const deck = document.getElementById('flashcard-deck');
+      if (!deck) return;
+      deck.innerHTML = renderFlashcardView();
+      lucide.createIcons();
+      // Move focus to the card so subsequent Space presses flip without
+      // needing a click first.
+      const btn = document.getElementById('flashcard-button');
+      if (btn) btn.focus({ preventScroll: true });
+    }
+
+    function flipFlashcard() {
+      if (!_fc) return;
+      _fc.flipped = !_fc.flipped;
+      updateFlashcardView();
+    }
+    function nextFlashcard() {
+      if (!_fc || _fc.idx >= _fc.cards.length - 1) return;
+      _fc.idx++;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+    function prevFlashcard() {
+      if (!_fc || _fc.idx <= 0) return;
+      _fc.idx--;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+    function restartFlashcards() {
+      if (!_fc) return;
+      _fc.idx = 0;
+      _fc.flipped = false;
+      updateFlashcardView();
+    }
+
+    // Global keyboard handler for flashcards. Active only while the resource
+    // detail modal is open AND we're rendering a flashcard deck.
+    document.addEventListener('keydown', (e) => {
+      if (!_fc) return;
+      const modal = document.getElementById('resource-detail');
+      if (!modal || modal.classList.contains('hidden')) return;
+      // Don't hijack typing in form fields.
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        flipFlashcard();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextFlashcard();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevFlashcard();
+      }
+    });
+
+    // Quizzes use real radio inputs so selection works without any custom click
+    // handlers (which the resource modal's stopPropagation was eating).
+    // The user picks all answers, hits Submit, and sees the score + per-question
+    // feedback all at once.
+    function renderQuiz(questions, citations) {
+      if (!Array.isArray(questions) || questions.length === 0) {
+        return errorStub('No quiz questions were generated.');
+      }
+      const blocks = questions.map((q, qi) => {
+        const choices = (q.choices || []).map((c, ci) => `
+          <label class="quiz-choice flex items-start gap-3 px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 hover:border-blue-500/60 text-sm text-slate-300 hover:text-slate-100 transition cursor-pointer">
+            <input type="radio" name="quiz-q-${qi}" value="${ci}" class="quiz-radio mt-1 accent-blue-500 cursor-pointer" />
+            <span class="flex-1"><span class="text-blue-400 font-mono mr-2">${String.fromCharCode(65 + ci)}.</span>${escapeHtml(c)}</span>
+          </label>
+        `).join('');
+        return `
+          <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4" data-quiz-q="${qi}" data-correct="${q.correct}" data-explanation="${escapeHtml(q.explanation || '').replace(/"/g, '&quot;')}">
+            <div class="font-semibold text-slate-200 mb-3">${qi + 1}. ${escapeHtml(q.q || '')}</div>
+            <div class="space-y-2">${choices}</div>
+            <div class="quiz-feedback hidden mt-3 p-3 rounded-md text-sm"></div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div id="quiz-container" class="space-y-4">
+          <div id="quiz-questions" class="space-y-4">${blocks}</div>
+          <div id="quiz-result" class="hidden"></div>
+          <button id="quiz-submit-btn" type="button" onclick="submitQuiz()" class="w-full mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/20 transition">
+            Submit Quiz
+          </button>
+        </div>
+        ${citationFooter(citations)}
+      `;
+    }
+
+    function submitQuiz() {
+      const container = document.getElementById('quiz-container');
+      if (!container) return;
+      const blocks = container.querySelectorAll('[data-quiz-q]');
+      const total = blocks.length;
+      let correct = 0;
+      let answered = 0;
+
+      blocks.forEach(qBlock => {
+        const correctIdx = parseInt(qBlock.dataset.correct, 10);
+        const explanation = qBlock.dataset.explanation || '';
+        const sel = qBlock.querySelector('input.quiz-radio:checked');
+        const chosenIdx = sel ? parseInt(sel.value, 10) : -1;
+        const isRight = chosenIdx === correctIdx;
+        if (chosenIdx !== -1) answered++;
+        if (isRight) correct++;
+
+        // Lock all choices, color them based on correctness.
+        qBlock.querySelectorAll('.quiz-choice').forEach((label, idx) => {
+          const input = label.querySelector('input.quiz-radio');
+          if (input) input.disabled = true;
+          label.classList.remove('hover:border-blue-500/60', 'hover:text-slate-100', 'cursor-pointer');
+          label.classList.add('cursor-default');
+          if (idx === correctIdx) {
+            label.classList.add('!bg-emerald-500/10', '!border-emerald-500/50', 'text-emerald-200');
+          } else if (idx === chosenIdx) {
+            label.classList.add('!bg-rose-500/10', '!border-rose-500/50', 'text-rose-200');
+          } else {
+            label.classList.add('opacity-50');
+          }
+        });
+
+        const fb = qBlock.querySelector('.quiz-feedback');
+        fb.classList.remove('hidden');
+        const correctLetter = String.fromCharCode(65 + correctIdx);
+        if (isRight) {
+          fb.classList.add('bg-emerald-500/10', 'border', 'border-emerald-500/30', 'text-emerald-200');
+          fb.innerHTML = `<strong>✓ Correct.</strong> ${explanation}`;
+        } else if (chosenIdx === -1) {
+          fb.classList.add('bg-zinc-800/60', 'border', 'border-zinc-700', 'text-slate-300');
+          fb.innerHTML = `<strong>Skipped.</strong> The answer is <strong>${correctLetter}</strong>. ${explanation}`;
+        } else {
+          fb.classList.add('bg-rose-500/10', 'border', 'border-rose-500/30', 'text-rose-200');
+          fb.innerHTML = `<strong>✗ Not quite.</strong> The answer is <strong>${correctLetter}</strong>. ${explanation}`;
+        }
+      });
+
+      const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const grade = pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F';
+      const passing = pct >= 70;
+      const colors = passing
+        ? { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', accent: 'text-emerald-200', sub: 'text-emerald-300' }
+        : { bg: 'bg-rose-500/10', border: 'border-rose-500/30', accent: 'text-rose-200', sub: 'text-rose-300' };
+      const skipped = total - answered;
+      const result = document.getElementById('quiz-result');
+      result.className = `${colors.bg} border ${colors.border} rounded-lg p-5 text-center`;
+      result.innerHTML = `
+        <div class="text-4xl font-bold ${colors.accent}">${correct} / ${total}</div>
+        <div class="text-sm ${colors.sub} mt-1">${pct}% — Grade: <strong>${grade}</strong>${skipped ? ` &nbsp;·&nbsp; ${skipped} skipped` : ''}</div>
+      `;
+
+      const submitBtn = document.getElementById('quiz-submit-btn');
+      if (submitBtn) submitBtn.classList.add('hidden');
+      result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function citationFooter(citations) {
+      if (!citations || citations.length === 0) return '';
+      const items = citations.map(c => `<span class="inline-block bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1 text-[11px] text-slate-400">${escapeHtml(c)}</span>`).join(' ');
+      return `<div class="mt-6 pt-4 border-t border-zinc-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">FAA Sources</div>
+        <div class="flex flex-wrap gap-1.5">${items}</div>
+      </div>`;
     }
 
     function comingSoonStub(featureName, topicName, iconName) {
@@ -1093,6 +2445,8 @@
     function closeResource(e) {
       if (e && e.target.id !== 'resource-detail') return;
       document.getElementById('resource-detail').classList.add('hidden');
+      // Stop the flashcard keyboard handler from acting on closed-modal content.
+      _fc = null;
     }
 
     // ============================================================
@@ -1213,7 +2567,7 @@
       },
       {
         topic: 'Aerodynamics',
-        q: "Explain ground effect — what's happening, and where does it bite you?",
+        q: "Explain ground effect — what's happening aerodynamically, and what are its operational risks?",
         keys: ['wingspan','induced drag','reduce','near','surface','ground','float','lift','low','climb'],
         minHits: 2,
         ideal: "Within roughly one wingspan of the surface, the wingtip vortices are partially blocked, downwash is reduced, and induced drag drops noticeably. The airplane wants to float on landing, and on a high-DA takeoff you might lift off in ground effect but be unable to climb out — a classic accident scenario.",
@@ -1257,49 +2611,100 @@
       },
     ];
 
+    // Difficulty configs. `followups` is the max number of chained sub-questions
+    // the DPE will ask on a topic before switching:
+    //   - Beginner (2): walks laterally through related sub-topics, brief & friendly.
+    //   - Intermediate (3): probes details, scenario variations, and tests judgment.
+    //   - Advanced (5): drills exhaustively, stacks multi-part questions, demands mastery.
+    // The right/wrong "tone" lines are quiet fallbacks for when the AI feedback
+    // is unavailable — normally Claude's own feedback carries the reaction.
     const dpeConfig = {
       beginner: {
-        label: 'Beginner', followups: 0, passScore: 70,
-        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it friendly — I'll ask fundamental questions covering the core PPL areas. Take your time, type your answer in your own words. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
+        label: 'Beginner', followups: 2, passScore: 70,
+        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it conversational — I'll ask a question, you answer in your own words, and I'll walk us naturally through each topic the way a real oral feels. Brief affirmations, no drilling. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
         startReadyLine: "Ready when you are. Here's the first one:",
-        partial: "That's part of it. Want to add anything?",
-        wrongTone: "Not quite — let me give you the right answer:",
-        rightTone: "Good answer.",
+        wrongTone: "Not quite.",
       },
       intermediate: {
-        label: 'Intermediate', followups: 1, passScore: 70,
-        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. I'll be asking scenario questions across the core knowledge areas, and on most of them I'll come back with a follow-up to dig into your reasoning. Explain your thought process, not just the textbook answer.<br><br><strong>How long would you like this session to last?</strong>`,
-        startReadyLine: "Let's begin. First question:",
-        partial: "I want to push you a bit further — add to that.",
-        wrongTone: "Let me correct that:",
-        rightTone: "Solid. Let me probe a bit further:",
+        label: 'Intermediate', followups: 3, passScore: 70,
+        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. At this level I expect the key ideas plus the more specific conditions that apply — night-currency rules, tailwheel rules, exceptions and variations on the headline answer. If you cover everything I'm looking for, we move on. If you miss a required piece, I'll probe that specific gap.<br><br><strong>How long would you like this session to last?</strong>`,
+        startReadyLine: "Let's begin.",
+        wrongTone: "Let me correct that.",
       },
       advanced: {
-        label: 'Advanced', followups: 3, passScore: 70,
-        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. Deep scenario questions with multiple drill-down follow-ups on each. Sloppy answers will get probed harder. Don't bluff; if you don't know, say so. The grade is based on whether your decision-making would keep an aircraft and its passengers safe.<br><br><strong>How long would you like this session to last?</strong>`,
+        label: 'Advanced', followups: 5, passScore: 70,
+        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. At this level I expect comprehensive answers: headline rules, all variations, alternative compliance paths, and edge cases. If anything required is missing, I'll drill on it — sometimes stacking several questions in one turn. If you cover everything, we move on. Don't bluff; if you don't know, say so.<br><br><strong>How long would you like this session to last?</strong>`,
         startReadyLine: "Let's begin.",
-        partial: "Insufficient — give me more.",
-        wrongTone: "That's wrong. The correct answer:",
-        rightTone: "Acceptable. Going deeper:",
+        wrongTone: "That's wrong.",
       },
     };
 
     function shuffle(a) { const arr=[...a]; for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
 
+    // Fallback keyword grader. Three verdicts: correct (all keys hit),
+    // partial (some hit), wrong (none hit). Used when the AI grade call
+    // fails (network blip, server down) so the oral never stalls.
     function gradeAnswer(text, q) {
-      if (!text) return { result: 'wrong', hits: 0 };
+      if (!text) return { result: 'wrong', hits: 0, feedback: '', next_question: null };
       const lower = ' ' + text.toLowerCase() + ' ';
       let hits = 0;
       const seen = new Set();
-      for (const k of q.keys) {
+      for (const k of (q.keys || [])) {
         const key = k.toLowerCase();
         if (seen.has(key)) continue;
         if (lower.includes(key)) { hits++; seen.add(key); }
       }
-      // Basic-terms grading: touching the concept at all (>=1 key) counts as
-      // correct. This applies identically to main questions and follow-ups.
-      if (hits >= 1) return { result: 'correct', hits };
-      return { result: 'wrong', hits };
+      const min = q.minHits || 1;
+      if (hits >= min) return { result: 'correct', hits, feedback: '', next_question: null };
+      if (hits > 0)    return { result: 'partial', hits, feedback: '', next_question: null };
+      return { result: 'wrong', hits, feedback: '', next_question: null };
+    }
+
+    // AI-powered grader. Calls /api/grade which uses Claude to issue one of
+    // three verdicts (correct / partial / wrong) and a focused follow-up
+    // question when the verdict is 'partial'.
+    async function gradeAnswerAI(text, q, mode, previousTurns) {
+      if (!text) return { result: 'wrong', score: 0, feedback: '', next_question: null };
+      const difficulty = mode === 'beginner' ? 'beginner'
+                       : mode === 'advanced'  ? 'checkride'
+                       : 'intermediate';
+      // previousTurns: array of {q, a} for earlier turns in this topic. Sent to
+      // the grader so it can judge the student's cumulative answer rather than
+      // just the latest turn in isolation.
+      const cleanedPrev = Array.isArray(previousTurns)
+        ? previousTurns.filter(t => t && t.q && t.a).map(t => ({ q: String(t.q), a: String(t.a) }))
+        : [];
+      try {
+        const res = await apiFetch('/api/grade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: q.q,
+            answer: text,
+            ideal: q.ideal || '',
+            difficulty,
+            previous_turns: cleanedPrev
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Grade failed (${res.status})`);
+        // Map server verdict to internal grade. 'incorrect' from the API is
+        // surfaced as 'wrong' in the frontend.
+        const v = data.verdict;
+        const result = v === 'correct' ? 'correct'
+                    : v === 'partial' ? 'partial'
+                    : 'wrong';
+        const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
+        return {
+          result,
+          score: typeof data.score === 'number' ? data.score : defaultScore,
+          feedback: data.feedback || '',
+          next_question: data.next_question || null
+        };
+      } catch (err) {
+        console.warn('AI grading failed, falling back to keyword grading:', err);
+        return gradeAnswer(text, q);
+      }
     }
 
     function startTest(mode) {
@@ -1310,6 +2715,10 @@
         questions: shuffle(dpeBank),  // initial shuffle; reshuffled when exhausted
         index: 0,
         followupIdx: -1,              // -1 = main question; 0..N = follow-up index
+        currentTopicTurns: [],        // [{q, a}] for the current topic — so the
+                                      // grader can judge cumulatively across all
+                                      // of the student's answers, not just the
+                                      // latest turn. Reset by askMain().
         results: [],                  // per-main-question grading
         history: [],                  // chat transcript for review
         awaitingDuration: true,       // first user input is the desired duration
@@ -1323,7 +2732,7 @@
       document.getElementById('test-results').classList.add('hidden');
       document.getElementById('test-active').classList.remove('hidden');
       document.getElementById('test-mode-label').textContent = cfg.label + ' Oral';
-      document.getElementById('q-current').textContent = '—';
+      document.getElementById('current-topic').textContent = 'Practice Oral';
       document.getElementById('progress-bar').style.width = '0%';
       document.getElementById('dpe-messages').innerHTML = '';
       document.getElementById('dpe-input').value = '';
@@ -1409,21 +2818,54 @@
       if (t.index >= t.questions.length) {
         t.questions = t.questions.concat(shuffle(dpeBank));
       }
+
+      // Dedup: skip questions the user has already correctly/partially answered
+      // in the last ~10 sessions. Wrong answers stay eligible (more practice).
+      // We swap the current slot with a later eligible question rather than
+      // truly removing — that way the rest of the queue still rotates through.
+      // Within this oral, also avoid re-asking what the student already got.
+      const recentSet = state.dpe.recentlyAskedSet || new Set();
+      const askedThisSessionRight = new Set(
+        t.results
+          ? t.results.filter(r => r.type === 'main' && r.grade !== 'wrong').map(r => r.q)
+          : []
+      );
+      const wasAskedRecentlyAnsweredRight = (qText) =>
+        recentSet.has(qText) || askedThisSessionRight.has(qText);
+
+      // Search forward through the queue for the first eligible question.
+      let chosenOffset = 0;
+      const horizon = t.questions.length - t.index;
+      for (let i = 0; i < horizon; i++) {
+        const cand = t.questions[t.index + i];
+        if (!wasAskedRecentlyAnsweredRight(cand.q)) { chosenOffset = i; break; }
+        chosenOffset = i;  // remember the last seen, in case all are duplicates
+      }
+      if (chosenOffset > 0) {
+        // Move the chosen question forward to the current slot.
+        const [chosen] = t.questions.splice(t.index + chosenOffset, 1);
+        t.questions.splice(t.index, 0, chosen);
+      }
+
       const q = t.questions[t.index];
       t.followupIdx = -1;
+      t.currentFollowup = null;
+      t.currentTopicTurns = [];  // fresh topic — clear the cumulative context
       t.history.push({ role:'dpe-q', topic: q.topic, content: q.q });
-      document.getElementById('q-current').textContent = (t.index + 1);
-      addMsg('dpe-messages','system', `Question ${t.index + 1} • ${q.topic}`);
-      setTimeout(() => addMsg('dpe-messages','bot', q.q), 250);
+      // Quiet topic indicator in the header — no in-chat "Question N • Topic" bubble.
+      document.getElementById('current-topic').textContent = q.topic;
+      addMsg('dpe-messages','bot', q.q);
     }
 
-    function askFollowup(idx) {
+    // Ask a follow-up generated by the AI grader. Replaces the old scripted
+    // follow-up bank — when the grader notices a missing detail, it returns
+    // a one-sentence probe and we just ask it conversationally.
+    function askFollowupText(questionText, topic) {
       const t = state.test;
-      const q = t.questions[t.index];
-      const fu = q.followups[idx];
-      t.followupIdx = idx;
-      t.history.push({ role:'dpe-fu', topic: q.topic, content: fu.q });
-      addMsg('dpe-messages','bot', `<em class="text-slate-300 not-italic">Follow-up:</em> ${fu.q}`);
+      t.followupIdx = (t.followupIdx >= 0 ? t.followupIdx + 1 : 0);
+      t.currentFollowup = { q: questionText, ideal: '', topic };
+      t.history.push({ role:'dpe-fu', topic, content: questionText });
+      addMsg('dpe-messages','bot', questionText);
     }
 
     document.getElementById('dpe-form').addEventListener('submit', async (e) => {
@@ -1469,66 +2911,86 @@
       const cfg = t.cfg;
       const q = t.questions[t.index];
 
-      // What are we grading? main or follow-up?
-      const isFollowup = t.followupIdx >= 0;
-      const gradeable = isFollowup ? q.followups[t.followupIdx] : q;
-      const grading = gradeAnswer(text, gradeable);
+      // What are we grading? main or AI-generated follow-up?
+      const isFollowup = t.followupIdx >= 0 && !!t.currentFollowup;
+      const gradeable = isFollowup ? t.currentFollowup : q;
+
+      // Snapshot of previous Q&A turns for THIS topic before adding the current
+      // one. The grader uses this so a student who answered piece A in turn 1
+      // and piece B in turn 2 isn't penalized for not repeating A in turn 2.
+      const previousTurns = (t.currentTopicTurns || []).slice();
 
       showTyping('dpe-messages');
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+      const grading = await gradeAnswerAI(text, gradeable, t.mode, previousTurns);
       clearTyping('dpe-messages');
 
-      // Reaction + ideal answer
-      let reaction = '';
+      // Decide follow-up eligibility FIRST, so the rendered bubble and the
+      // conversation flow always agree. A follow-up happens only when the
+      // verdict is partial, the grader supplied a next_question, AND the
+      // difficulty's follow-up budget for this topic isn't exhausted.
+      const followupsAllowed = cfg.followups || 0;
+      const followupsUsed = isFollowup ? (t.followupIdx + 1) : 0;
+      const doFollowup = grading.result === 'partial'
+                      && !!grading.next_question
+                      && followupsUsed < followupsAllowed;
+
+      // Render the DPE's response based on verdict.
+      //   correct → green bubble with a brief affirmation, no follow-up.
+      //   partial + doFollowup → yellow bubble that IS the follow-up question
+      //             (no acknowledgment preamble). The next answer is graded
+      //             against it.
+      //   partial + budget exhausted → yellow closeout showing the reference
+      //             so the gap is still taught, then advance. NEVER render a
+      //             follow-up question we won't let the student answer.
+      //   wrong   → red bubble with the AI's correction and the reference.
+      const fbHtml = grading.feedback ? formatClaudeReply(grading.feedback) : '';
+      let reaction, reactionRole;
       if (grading.result === 'correct') {
-        reaction = `<strong class="text-emerald-400">${cfg.rightTone}</strong>`;
+        reaction = fbHtml || `<strong>Correct.</strong>`;
+        reactionRole = 'bot-correct';
       } else if (grading.result === 'partial') {
-        reaction = `<strong class="text-amber-300">${cfg.partial}</strong> The complete answer:<br><br>${gradeable.ideal}`;
-      } else {
-        reaction = `<strong class="text-rose-300">${cfg.wrongTone}</strong><br><br>${gradeable.ideal}`;
-      }
-      addMsg('dpe-messages','bot', reaction);
-
-      // Track result for the MAIN question only
-      if (!isFollowup) {
-        t.results.push({
-          topic: q.topic,
-          mainGrade: grading.result,
-          followupGrades: [],
-          q: q.q,
-          userAnswer: text,
-          ideal: q.ideal,
-        });
-      } else {
-        const lastResult = t.results[t.results.length - 1];
-        lastResult.followupGrades.push(grading.result);
-        // If main was partial but follow-up was correct, upgrade
-        if (lastResult.mainGrade === 'partial' && grading.result === 'correct' && lastResult.followupGrades.length === 1) {
-          lastResult.mainGrade = 'correct';
+        reactionRole = 'bot-partial';
+        if (doFollowup) {
+          reaction = formatClaudeReply(grading.next_question);
+        } else {
+          reaction = gradeable.ideal
+            ? `<em class="text-slate-300 not-italic">For completeness:</em> ${gradeable.ideal}`
+            : (fbHtml || `<strong>Let's move on.</strong>`);
         }
-        // If main was correct but follow-up flunked at advanced, downgrade
-        if (lastResult.mainGrade === 'correct' && grading.result === 'wrong' && cfg.followups >= 2) {
-          lastResult.mainGrade = 'partial';
-        }
+      } else {
+        const refLine = gradeable.ideal
+          ? `<br><br><em class="text-slate-400 not-italic">Reference:</em> ${gradeable.ideal}`
+          : '';
+        reaction = (fbHtml || `<strong>${cfg.wrongTone}</strong>`) + refLine;
+        reactionRole = 'bot-wrong';
       }
+      addMsg('dpe-messages', reactionRole, reaction);
 
-      // Decide next step: another follow-up, or move to next main, or finish
-      const followupsAllowed = cfg.followups;
-      const nextFollowup = t.followupIdx + 1;
-      const hasMoreFollowups = nextFollowup < (q.followups || []).length && nextFollowup < followupsAllowed;
-      // Beginner: skip follow-ups entirely
-      if (followupsAllowed === 0) {
-        await advanceMain();
-        return;
-      }
-      // If main was wrong, ask only ONE follow-up at intermediate, but still drill at advanced
-      if (!isFollowup && grading.result === 'wrong' && cfg.followups < 2) {
-        await advanceMain();
-        return;
-      }
-      if (hasMoreFollowups) {
-        await new Promise(r => setTimeout(r, 600));
-        askFollowup(nextFollowup);
+      // Track each answered turn (main OR follow-up) as its own result entry.
+      // Score, weak-topic detection, and the post-oral review screen all consume
+      // this flat list so follow-ups count individually toward the total.
+      t.results.push({
+        type: isFollowup ? 'followup' : 'main',
+        topic: (isFollowup && t.currentFollowup && t.currentFollowup.topic) || q.topic,
+        q: gradeable.q,
+        userAnswer: text,
+        grade: grading.result,
+        ideal: gradeable.ideal || '',
+      });
+
+      // Append this Q&A to the topic's running context, so any subsequent
+      // follow-up grading sees the cumulative student answer.
+      t.currentTopicTurns = t.currentTopicTurns || [];
+      t.currentTopicTurns.push({ q: gradeable.q, a: text });
+
+      // Flow: if we're following up, the yellow bubble already showed the
+      // question — just record the follow-up state so the next answer grades
+      // against it. Otherwise advance to the next main question. (Exactly one
+      // of these happens, so a follow-up and a new main can never both appear.)
+      if (doFollowup) {
+        t.followupIdx = isFollowup ? t.followupIdx + 1 : 0;
+        t.currentFollowup = { q: grading.next_question, ideal: '', topic: q.topic };
+        t.history.push({ role:'dpe-fu', topic: q.topic, content: grading.next_question });
       } else {
         await advanceMain();
       }
@@ -1572,7 +3034,10 @@
       if (remaining === 0) finishTest();
     }
 
-    function gradeToScore(g) { return g === 'correct' ? 1 : (g === 'partial' ? 0.5 : 0); }
+    // Three-verdict scoring: correct = 1, partial = 0.5, wrong = 0.
+    function gradeToScore(g) {
+      return g === 'correct' ? 1 : g === 'partial' ? 0.5 : 0;
+    }
 
     function finishTest() {
       const t = state.test;
@@ -1587,44 +3052,80 @@
         t.results = [];
       }
 
+      // Every answered turn (main + follow-ups) counts as its own question.
       const total = Math.max(t.results.length, 1);
-      const points = t.results.reduce((s, r) => s + gradeToScore(r.mainGrade), 0);
+      const points = t.results.reduce((s, r) => s + gradeToScore(r.grade), 0);
       const pct = t.results.length === 0 ? 0 : Math.round(points / total * 100);
       const passed = t.results.length > 0 && pct >= t.cfg.passScore;
 
-      // Topic breakdown
+      // Topic breakdown — every result (main + follow-up) counts in its topic.
       const byTopic = {};
       t.results.forEach(r => {
         if (!byTopic[r.topic]) byTopic[r.topic] = { points: 0, total: 0 };
         byTopic[r.topic].total++;
-        byTopic[r.topic].points += gradeToScore(r.mainGrade);
+        byTopic[r.topic].points += gradeToScore(r.grade);
       });
+
+      // Weak topics — anything where the student missed at least one question
+      // (main OR follow-up). Drives the 4 remediation buttons on the results screen.
+      _remediationTopics = [...new Set(
+        t.results.filter(r => r.grade !== 'correct').map(r => r.topic)
+      )];
 
       state.progress.testHistory.push({ score: pct, timestamp: Date.now() });
       updateProgressUI();
+
+      // Persist this oral to Supabase. The feedback payload carries enough
+      // per-question detail (q, type, grade, userAnswer) for both the history
+      // view and the DPE's recently-asked dedup logic on future sessions.
+      const overallVerdict = passed ? 'passed' : (pct >= 50 ? 'partial' : 'failed');
+      const topicLabel = (_remediationTopics && _remediationTopics.length === 1)
+        ? _remediationTopics[0]
+        : null;
+      saveOralResultRemote({
+        topic: topicLabel,
+        score: pct,
+        verdict: overallVerdict,
+        difficulty: t.cfg.label.toLowerCase(),
+        feedback: t.results.map(r => ({
+          q: r.q,
+          type: r.type,        // 'main' or 'followup'
+          topic: r.topic,
+          grade: r.grade,      // 'correct' | 'partial' | 'wrong'
+          userAnswer: r.userAnswer,
+        })),
+      });
 
       // Wrap-up message in chat
       addMsg('dpe-messages','system', `Oral complete — ${pct}% • ${passed ? 'Passed' : 'Did not pass'}`);
       const closer = passed
         ? `<strong>That's a passing oral.</strong> Solid foundation. Review any topic where you scored under 80%, and try the next difficulty up.`
-        : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> Don't sweat it — that's exactly what practice orals are for. Look at the topic breakdown below, drill the weak ones in CFI Chat or Study Guides, and come back.`;
+        : `<strong>You did not meet the passing standard (${t.cfg.passScore}%).</strong> That's the purpose of a practice oral — to identify weak areas before the checkride. Review the topic breakdown below, study the areas that scored lowest in CFI Chat or the Resources tab, then take another oral.`;
       setTimeout(() => addMsg('dpe-messages','bot', closer), 400);
 
-      // Results panel below the chat
+      // Review list: every answered turn (main + follow-ups) shown individually
+      // with verdict color (green/yellow/red) matching the chat-bubble palette.
       const reviewHtml = t.results.map((r, i) => {
-        const cls = r.mainGrade === 'correct' ? 'border-emerald-500/40 bg-emerald-500/5' :
-                    r.mainGrade === 'partial' ? 'border-amber-500/40 bg-amber-500/5' :
-                    'border-rose-500/40 bg-rose-500/5';
-        const label = r.mainGrade === 'correct' ? '✓' : r.mainGrade === 'partial' ? '◐' : '✗';
-        const labelColor = r.mainGrade === 'correct' ? 'text-emerald-400' : r.mainGrade === 'partial' ? 'text-amber-300' : 'text-rose-400';
+        const cls = r.grade === 'correct'  ? 'border-green-500/50 bg-green-500/5'
+                  : r.grade === 'partial'  ? 'border-yellow-500/50 bg-yellow-500/5'
+                  :                          'border-red-500/50 bg-red-500/5';
+        const label = r.grade === 'correct' ? '✓'
+                    : r.grade === 'partial' ? '◐'
+                    :                         '✗';
+        const labelColor = r.grade === 'correct' ? 'text-green-400'
+                         : r.grade === 'partial' ? 'text-yellow-300'
+                         :                         'text-red-400';
+        const typeBadge = r.type === 'followup'
+          ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-300 border border-blue-500/30 ml-2 align-middle">Follow-up</span>'
+          : '';
         return `
           <div class="border ${cls} rounded-lg p-4 mb-3">
             <div class="flex items-start justify-between gap-3 mb-2">
-              <div class="text-sm font-semibold text-slate-100">Q${i+1}. ${escapeHtml(r.q)}</div>
+              <div class="text-sm font-semibold text-slate-100">Q${i+1}. ${escapeHtml(r.q)}${typeBadge}</div>
               <span class="${labelColor} font-bold text-lg whitespace-nowrap">${label} <span class="text-xs uppercase tracking-wider">${r.topic}</span></span>
             </div>
             <div class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">You said:</strong> ${escapeHtml(r.userAnswer)}</div>
-            <div class="text-xs text-slate-300"><strong class="text-slate-100">Ideal answer:</strong> ${r.ideal}</div>
+            ${r.ideal ? `<div class="text-xs text-slate-300"><strong class="text-slate-100">Reference:</strong> ${r.ideal}</div>` : ''}
           </div>`;
       }).join('');
 
@@ -1647,7 +3148,7 @@
       r.classList.remove('hidden');
       r.innerHTML = `
         <div class="mt-8 bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden">
-          <div class="p-6 md:p-8 ${passed ? 'bg-gradient-to-br from-emerald-800 to-emerald-950' : 'bg-gradient-to-br from-rose-800 to-rose-950'} text-white">
+          <div class="p-6 md:p-8 ${passed ? 'bg-gradient-to-br from-green-800 to-green-950' : 'bg-gradient-to-br from-red-800 to-red-950'} text-white">
             <div class="text-sm uppercase tracking-wider opacity-80 mb-1">${t.cfg.label} Oral • ${passed ? 'Passed' : 'Did not pass'}</div>
             <div class="text-5xl font-bold mb-1">${pct}%</div>
             <div class="text-sm opacity-90">Pass mark ${t.cfg.passScore}% • ${t.results.length} question${t.results.length === 1 ? '' : 's'} answered</div>
@@ -1659,14 +3160,46 @@
             </div>
             <div>
               <h3 class="font-bold text-slate-100 mb-3">Next Steps</h3>
-              <p class="text-sm text-slate-400 mb-3">${passed
-                ? 'Solid work. Try a harder mode, or drill any topic that scored under 80%.'
-                : 'Drill topics that scored under 70% in CFI Chat or Study Guides, then take another oral.'}</p>
-              <div class="flex flex-wrap gap-2">
-                <button onclick="goto('chat')" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">Open CFI Chat</button>
-                <button onclick="goto('study')" class="px-4 py-2 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
-                <button onclick="resetTest()" class="px-4 py-2 text-sm rounded-lg border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Take Another Oral</button>
-              </div>
+
+              <button onclick="resetTest()" class="block w-full px-4 py-3 mb-4 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center justify-center gap-2">
+                <i data-lucide="rotate-cw" class="w-4 h-4"></i> Take Another Oral
+              </button>
+
+              ${_remediationTopics.length > 0 ? `
+                <div class="border-t border-zinc-900 pt-4">
+                  <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Review the topics you missed</div>
+                  <div class="flex flex-wrap gap-1.5 mb-3">
+                    ${_remediationTopics.map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">${escapeHtml(t)}</span>`).join('')}
+                  </div>
+                  <div class="space-y-2">
+                    <button onclick="cfiReviewWeakTopics()" class="block w-full px-3 py-2.5 text-sm rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-2 transition">
+                      <i data-lucide="message-circle" class="w-4 h-4 text-blue-400"></i> Review with CFI Chat
+                    </button>
+                    <div class="grid grid-cols-3 gap-2">
+                      <button onclick="remediateWithResource('study')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="book-open" class="w-4 h-4 text-blue-400"></i> Study Guide
+                      </button>
+                      <button onclick="remediateWithResource('flashcards')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="layers" class="w-4 h-4 text-blue-400"></i> Flash Cards
+                      </button>
+                      <button onclick="remediateWithResource('quiz')" class="px-2 py-2.5 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold inline-flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="check-square" class="w-4 h-4 text-blue-400"></i> Quiz
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <div class="border-t border-zinc-900 pt-4">
+                  <div class="flex items-start gap-2 mb-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                    <div class="text-sm text-slate-300">Strong performance across all topics — no specific review needed. Try a harder difficulty next.</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button onclick="goto('chat')" class="px-3 py-2 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Open CFI Chat</button>
+                    <button onclick="goto('study')" class="px-3 py-2 text-xs rounded-lg bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 text-slate-200 font-semibold">Resources</button>
+                  </div>
+                </div>
+              `}
             </div>
           </div>
           <div class="p-6 md:p-8 border-t border-zinc-900">
@@ -1675,15 +3208,39 @@
           </div>
         </div>
       `;
+      // Render the Lucide icons inside the newly-injected results HTML.
+      lucide.createIcons();
       // Don't hide active chat — let user re-read it. Just bring results into view.
       setTimeout(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
 
     function resetTest() {
+      // Wipe state and stop any background ticker so the next oral starts clean.
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       state.test = null;
+
+      // Reset the visible chrome of the active oral panel so it's empty when
+      // the next test starts (in case the user opens the picker and a brief
+      // flicker would otherwise show old state).
+      const dpeMsgs = document.getElementById('dpe-messages');
+      if (dpeMsgs) dpeMsgs.innerHTML = '';
+      const dpeInput = document.getElementById('dpe-input');
+      if (dpeInput) dpeInput.value = '';
+      const timer = document.getElementById('timer');
+      if (timer) { timer.textContent = '—:—'; timer.classList.remove('text-rose-400'); }
+      const progressBar = document.getElementById('progress-bar');
+      if (progressBar) progressBar.style.width = '0%';
+      const topic = document.getElementById('current-topic');
+      if (topic) topic.textContent = 'Practice Oral';
+
+      // Hide results + active panels, show the difficulty picker.
       document.getElementById('test-results').classList.add('hidden');
       document.getElementById('test-active').classList.add('hidden');
-      document.getElementById('test-picker').classList.remove('hidden');
+      const picker = document.getElementById('test-picker');
+      picker.classList.remove('hidden');
+
+      // Bring the picker into view so it's obvious where the user landed.
+      setTimeout(() => picker.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
 
     // Cmd/Ctrl+Enter to submit DPE answer (single Enter inserts newline since we use textarea)
@@ -1697,10 +3254,36 @@
     // ============================================================
     //                    INIT
     // ============================================================
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Render icons first so the auth screen shows the plane logo + spinner.
       lucide.createIcons();
-      goto('home');
-      updateProgressUI();
+      // Wire up the auth form, the paywall subscribe button, and the
+      // profile-menu sign-out.
+      initAuthUI();
+      initPaywallUI();
+      // If Stripe just redirected us back, sync the subscription before
+      // we decide which screen to show.
+      const cameBackFromCheckout = await handleCheckoutReturn();
+      // Now fetch the user + subscription state and route to one of the
+      // three screens (auth / paywall / app).
+      const me = await fetchMe();
+      const routed = routeToScreen(me);
+      if (routed?.subscription?.active) {
+        goto('home');
+        updateProgressUI();
+      } else if (routed && window._pendingPaywallNote) {
+        // Carry over the "checkout canceled" message onto the paywall.
+        showPaywallMessage('info', window._pendingPaywallNote);
+        window._pendingPaywallNote = null;
+      } else if (routed && cameBackFromCheckout) {
+        // We just synced after a successful checkout but the subscription
+        // still isn't active. Could be a Stripe propagation delay or an
+        // unfinished payment — surface a soft hint on the paywall.
+        showPaywallMessage('info', 'Finalizing your subscription — refresh in a moment if it doesn\'t appear.');
+      }
+      // After potentially swapping screens, re-create any lucide icons
+      // we just unhid (paywall, app, etc.).
+      lucide.createIcons();
     });
   </script>
 </body>
