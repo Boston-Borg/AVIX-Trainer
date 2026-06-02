@@ -2813,6 +2813,111 @@ Verdict guidance: "correct" = covered what matters for this difficulty; "partial
       return null;
     }
 
+    // The conversational brain of the oral. One /api/chat call that reads the
+    // student's latest message in context and decides what KIND of message it is
+    // — an answer to grade, a request to switch subjects, a question back to the
+    // examiner, or small talk — and produces the examiner's spoken reply. Returns
+    // a normalized object; the caller routes on `intent`.
+    async function examinerTurn(text, gradeable, mode, previousTurns, isFollowup) {
+      const difficulty = mode === 'beginner' ? 'beginner'
+                       : mode === 'advanced'  ? 'checkride'
+                       : 'intermediate';
+      const toneByDifficulty = {
+        beginner:    'Encouraging and instructive. Accept the core idea; affirm warmly and only nudge on real gaps.',
+        intermediate:'Professional and fair. Expect the key idea plus the specific conditions that apply.',
+        checkride:   'Rigorous checkride examiner. Expect comprehensive answers and drill specific gaps. Do not coach.'
+      };
+      const topics = [...new Set(dpeBank.map(b => b.topic))];
+
+      const prevBlock = (previousTurns && previousTurns.length)
+        ? 'Earlier turns on THIS topic (judge cumulatively):\n'
+          + previousTurns.map((p, i) => `  ${i + 1}. Q: ${p.q}\n     A: ${p.a}`).join('\n') + '\n\n'
+        : '';
+
+      const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) running a Private Pilot oral exam. Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
+
+You asked the student a question and they just sent a message. First decide what KIND of message it is:
+- "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
+- "request_topic": they are asking to cover or switch to a different subject (e.g. "can we do NTSB questions", "let's talk weather", "skip to emergencies"). Map it to the closest available topic.
+- "question": they are asking YOU something — a clarification or a question about the material or the exam itself.
+- "meta": small talk, pacing ("slow down"), "not sure where to start", etc.
+
+Available topics you can switch to: ${topics.join(', ')}.
+
+Reply with ONLY a JSON object (no prose, no markdown fences):
+{
+  "intent": "answer" | "request_topic" | "question" | "meta",
+  "reply": "<what you SAY to the student in the examiner's voice. For an answer, this is your feedback (1-3 sentences, **bold** key terms, cite FAR/AIM when useful). For request_topic, a brief one-line transition like 'Sure — let's move to NTSB reporting.' and do NOT ask the question yourself. For question/meta, answer briefly then steer back to the exam.>",
+  "verdict": "correct" | "partial" | "wrong" | null,   // answer only, else null
+  "score": <integer 0-100> | null,                       // answer only
+  "next_question": "<answer+partial only: one focused follow-up probing the missing piece; else null>",
+  "requested_topic": "<request_topic only: the EXACT topic string from the available list; else null>"
+}`;
+
+      const userContent =
+        `The question on the table${isFollowup ? ' (a follow-up)' : ''}:\n${gradeable.q}\n\n` +
+        (gradeable.ideal ? `Ideal answer (reference, not a script):\n${gradeable.ideal}\n\n` : '') +
+        prevBlock +
+        `Student's latest message:\n${text}\n\n` +
+        `Return only the JSON object.`;
+
+      const res = await apiFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Examiner turn failed (${res.status})`);
+      const parsed = extractJsonObject(data.reply || '');
+      if (!parsed || !parsed.intent) throw new Error('Could not parse examiner JSON');
+
+      const intent = ['answer','request_topic','question','meta'].includes(parsed.intent) ? parsed.intent : 'answer';
+      const out = { intent, reply: typeof parsed.reply === 'string' ? parsed.reply : '' };
+      if (intent === 'answer') {
+        out.result = parsed.verdict === 'correct' ? 'correct'
+                   : parsed.verdict === 'partial' ? 'partial'
+                   : 'wrong';
+        out.score = typeof parsed.score === 'number' ? parsed.score : null;
+        out.feedback = out.reply;  // the examiner's spoken reply IS the feedback
+        out.next_question = out.result === 'partial' && parsed.next_question ? String(parsed.next_question) : null;
+      } else if (intent === 'request_topic') {
+        // Snap to an exact known topic (case-insensitive), else null.
+        const want = String(parsed.requested_topic || '').toLowerCase();
+        out.requested_topic = topics.find(tp => tp.toLowerCase() === want) || null;
+      }
+      return out;
+    }
+
+    // Honor a student's request to switch subjects: pull a question of the
+    // requested topic to the current slot and ask it, without grading or
+    // advancing the score. Returns true if the switch happened.
+    function switchToTopic(topicLabel) {
+      const t = state.test;
+      if (!t) return false;
+      let idx = -1;
+      for (let i = t.index; i < t.questions.length; i++) {
+        if (t.questions[i].topic === topicLabel) { idx = i; break; }
+      }
+      if (idx === -1) {
+        for (let i = 0; i < t.questions.length; i++) {
+          if (t.questions[i].topic === topicLabel) { idx = i; break; }
+        }
+      }
+      if (idx === -1) return false;
+      if (idx !== t.index) {
+        const [chosen] = t.questions.splice(idx, 1);
+        t.questions.splice(t.index, 0, chosen);
+      }
+      t.followupIdx = -1;
+      t.currentFollowup = null;
+      t.currentTopicTurns = [];
+      const q = t.questions[t.index];
+      t.history.push({ role: 'dpe-q', topic: q.topic, content: q.q });
+      document.getElementById('current-topic').textContent = q.topic;
+      addMsg('dpe-messages', 'bot', q.q);
+      return true;
+    }
+
     function startTest(mode) {
       const cfg = dpeConfig[mode];
 
@@ -3027,7 +3132,50 @@ Verdict guidance: "correct" = covered what matters for this difficulty; "partial
       const previousTurns = (t.currentTopicTurns || []).slice();
 
       showTyping('dpe-messages');
-      const grading = await gradeAnswerAI(text, gradeable, t.mode, previousTurns);
+      // Read the student's message the way a real examiner would: it might be an
+      // answer, but it might also be a request to cover a different subject, a
+      // question back to the examiner, or small talk. Only actual answers get
+      // graded; everything else gets a conversational reply. This is what makes
+      // the DPE conversationalize instead of force-grading every message.
+      let turn;
+      try {
+        turn = await examinerTurn(text, gradeable, t.mode, previousTurns, isFollowup);
+      } catch (e) {
+        console.warn('examinerTurn failed, treating as a gradable answer:', e);
+        turn = null;
+      }
+
+      // Non-answer branches: respond conversationally, do NOT grade or advance.
+      if (turn && turn.intent === 'request_topic' && turn.requested_topic) {
+        clearTyping('dpe-messages');
+        if (turn.reply) addMsg('dpe-messages','bot', formatClaudeReply(turn.reply));
+        const switched = switchToTopic(turn.requested_topic);
+        if (!switched) {
+          // Couldn't map the topic — keep the current question in play.
+          addMsg('dpe-messages','bot', "I don't have a dedicated block for that one, but let's keep going with the question on the table.");
+        }
+        return;
+      }
+      if (turn && (turn.intent === 'question' || turn.intent === 'meta')) {
+        clearTyping('dpe-messages');
+        addMsg('dpe-messages','bot', formatClaudeReply(turn.reply || "Let's stay with the question on the table — go ahead when you're ready."));
+        return;
+      }
+
+      // Answer branch: use the examiner's grade if it produced one, otherwise
+      // fall back to the dedicated grader (which itself falls back to /api/chat
+      // then keyword matching).
+      let grading;
+      if (turn && turn.intent === 'answer' && turn.result) {
+        grading = {
+          result: turn.result,
+          score: typeof turn.score === 'number' ? turn.score : (turn.result === 'correct' ? 90 : turn.result === 'partial' ? 65 : 25),
+          feedback: turn.feedback || '',
+          next_question: turn.result === 'partial' ? (turn.next_question || null) : null
+        };
+      } else {
+        grading = await gradeAnswerAI(text, gradeable, t.mode, previousTurns);
+      }
       clearTyping('dpe-messages');
 
       // Decide follow-up eligibility FIRST, so the rendered bubble and the
