@@ -430,7 +430,7 @@
             <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Past Conversations</div>
             <div id="chat-history-list" class="flex-1 overflow-y-auto px-2 pb-3 scroll-thin"></div>
             <div class="border-t border-zinc-900 p-3 text-[10px] text-slate-600 leading-relaxed">
-              Stored in this session. Persistent history will hook in when the AI agent is connected.
+              Your conversations are saved to your account and sync across devices.
             </div>
           </aside>
 
@@ -1311,9 +1311,9 @@
     //                CHAT SESSIONS (sidebar + history)
     // ============================================================
     // Replaces the old single-history model. Each session has its own
-    // message list, title, seeded flag, and timestamp. The UI is fully
-    // wired; replace the in-memory store below with real persistence
-    // when the AI agent is connected.
+    // message list, title, seeded flag, and timestamp. Sessions persist to
+    // Supabase via /api/chat_sessions (see saveChatSessionNow); the in-memory
+    // store mirrors what's saved server-side.
     function newChatId() {
       return 'c-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
     }
@@ -2702,9 +2702,115 @@ Style:
           next_question: data.next_question || null
         };
       } catch (err) {
-        console.warn('AI grading failed, falling back to keyword grading:', err);
-        return gradeAnswer(text, q);
+        // /api/grade unavailable or errored. Rather than dropping straight to
+        // dumb keyword matching, route the analysis through the SAME /api/chat
+        // endpoint the CFI uses — this is what makes the DPE conversationalize:
+        // Claude actually reads the student's words and reacts in the examiner's
+        // voice. Keyword grading is the absolute last resort below that.
+        console.warn('/api/grade unavailable, analyzing answer via /api/chat:', err);
+        try {
+          return await gradeViaChat(text, q, mode, cleanedPrev);
+        } catch (err2) {
+          console.warn('Conversational grading failed, falling back to keyword grading:', err2);
+          return gradeAnswer(text, q);
+        }
       }
+    }
+
+    // Conversational examiner-grader built on the proven /api/chat endpoint.
+    // It asks Claude to act as the DPE: read the student's answer (in the
+    // context of the question, the ideal answer, and any earlier turns on this
+    // topic), decide a verdict, and reply in the examiner's own voice. The model
+    // returns a small JSON object we parse back into the same shape gradeAnswerAI
+    // produces, so the rest of the oral flow (scoring, follow-ups, persistence)
+    // is unchanged.
+    async function gradeViaChat(text, q, mode, cleanedPrev) {
+      const difficulty = mode === 'beginner' ? 'beginner'
+                       : mode === 'advanced'  ? 'checkride'
+                       : 'intermediate';
+
+      const toneByDifficulty = {
+        beginner:    'Encouraging and instructive. Accept the core idea; affirm warmly and only nudge on real gaps.',
+        intermediate:'Professional and fair. Expect the key idea plus the specific conditions that apply; probe a genuine gap with one focused follow-up.',
+        checkride:   'Rigorous checkride examiner. Expect comprehensive answers; if anything required is missing, drill the specific gap. Do not coach.'
+      };
+
+      const prevBlock = (cleanedPrev && cleanedPrev.length)
+        ? 'Earlier turns on THIS topic (judge the student cumulatively, do not penalize them for not repeating what they already said):\n'
+          + cleanedPrev.map((p, i) => `  ${i + 1}. Q: ${p.q}\n     A: ${p.a}`).join('\n') + '\n\n'
+        : '';
+
+      const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) conducting a Private Pilot oral exam. You are evaluating ONE student answer.
+
+Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
+
+You will be given the question you asked, the ideal answer, any earlier turns on this topic, and the student's latest answer. Read the student's ACTUAL words and judge whether they demonstrated understanding — not whether they matched specific keywords. A correct idea phrased loosely is still correct; a confident answer that is wrong is wrong.
+
+Reply with ONLY a JSON object (no prose, no markdown fences) of this exact shape:
+{
+  "verdict": "correct" | "partial" | "wrong",
+  "score": <integer 0-100>,
+  "feedback": "<1-3 sentences in the examiner's voice, speaking directly to the student about THEIR answer. Use **bold** for key terms. Cite the FAR/AIM when relevant. No keyword talk.>",
+  "next_question": "<if and only if verdict is 'partial': one short follow-up question probing the specific missing piece; otherwise null>"
+}
+
+Verdict guidance: "correct" = covered what matters for this difficulty; "partial" = right direction but missing a required piece (supply next_question); "wrong" = incorrect, contradicts the rule, or no real attempt (feedback should correct it concisely).`;
+
+      const userContent =
+        `Question you asked:\n${q.q}\n\n` +
+        (q.ideal ? `Ideal answer (reference, not a script):\n${q.ideal}\n\n` : '') +
+        prevBlock +
+        `Student's latest answer:\n${text}\n\n` +
+        `Return only the JSON object.`;
+
+      const res = await apiFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Chat grade failed (${res.status})`);
+
+      const parsed = extractJsonObject(data.reply || '');
+      if (!parsed || !parsed.verdict) throw new Error('Could not parse examiner JSON');
+
+      const result = parsed.verdict === 'correct' ? 'correct'
+                  : parsed.verdict === 'partial' ? 'partial'
+                  : 'wrong';
+      const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
+      return {
+        result,
+        score: typeof parsed.score === 'number' ? parsed.score : defaultScore,
+        feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
+        next_question: result === 'partial' && parsed.next_question ? String(parsed.next_question) : null
+      };
+    }
+
+    // Pull the first balanced {...} JSON object out of a model reply, tolerating
+    // stray prose or ```json fences. Returns the parsed object or null.
+    function extractJsonObject(raw) {
+      if (!raw) return null;
+      let s = String(raw).replace(/```json/gi, '').replace(/```/g, '').trim();
+      const start = s.indexOf('{');
+      if (start === -1) return null;
+      let depth = 0, inStr = false, esc = false;
+      for (let i = start; i < s.length; i++) {
+        const ch = s[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (ch === '\\') esc = true;
+          else if (ch === '"') inStr = false;
+        } else if (ch === '"') inStr = true;
+        else if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(s.slice(start, i + 1)); }
+            catch (_) { return null; }
+          }
+        }
+      }
+      return null;
     }
 
     function startTest(mode) {
