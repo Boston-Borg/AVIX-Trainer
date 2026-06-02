@@ -2894,20 +2894,38 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
     function switchToTopic(topicLabel) {
       const t = state.test;
       if (!t) return false;
-      let idx = -1;
-      for (let i = t.index; i < t.questions.length; i++) {
-        if (t.questions[i].topic === topicLabel) { idx = i; break; }
-      }
-      if (idx === -1) {
-        for (let i = 0; i < t.questions.length; i++) {
-          if (t.questions[i].topic === topicLabel) { idx = i; break; }
+      const label = (topicLabel || '').trim().toLowerCase();
+      if (!label) return false;
+      // The question on the table is the one the student wants to move AWAY
+      // from, so it must never be a candidate — searching it again is exactly
+      // what caused the examiner to re-ask the same question forever. Start the
+      // search at the NEXT slot and exclude the current question by text.
+      const currentQText = t.questions[t.index] ? t.questions[t.index].q : null;
+
+      const findFrom = (matcher) => {
+        for (let i = t.index + 1; i < t.questions.length; i++) {
+          const cand = t.questions[i];
+          if (cand.q === currentQText) continue;
+          if (matcher(cand.topic)) return i;
         }
+        return -1;
+      };
+
+      // Exact topic match first (case-insensitive), then a loose substring
+      // match so an LLM-generated label like "NTSB reporting" still lands on a
+      // "NTSB" topic block.
+      let idx = findFrom(topic => topic.toLowerCase() === label);
+      if (idx === -1) {
+        idx = findFrom(topic => {
+          const ct = topic.toLowerCase();
+          return ct.includes(label) || label.includes(ct);
+        });
       }
       if (idx === -1) return false;
-      if (idx !== t.index) {
-        const [chosen] = t.questions.splice(idx, 1);
-        t.questions.splice(t.index, 0, chosen);
-      }
+
+      // idx is always > t.index here, so this splice is safe.
+      const [chosen] = t.questions.splice(idx, 1);
+      t.questions.splice(t.index, 0, chosen);
       t.followupIdx = -1;
       t.currentFollowup = null;
       t.currentTopicTurns = [];
@@ -3151,8 +3169,10 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
         if (turn.reply) addMsg('dpe-messages','bot', formatClaudeReply(turn.reply));
         const switched = switchToTopic(turn.requested_topic);
         if (!switched) {
-          // Couldn't map the topic — keep the current question in play.
-          addMsg('dpe-messages','bot', "I don't have a dedicated block for that one, but let's keep going with the question on the table.");
+          // Couldn't map the requested topic to a different question. The
+          // student asked to move on, so honor that by advancing to the next
+          // main question rather than re-stranding them on the current one.
+          await advanceMain();
         }
         return;
       }
