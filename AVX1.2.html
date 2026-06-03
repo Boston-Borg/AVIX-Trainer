@@ -2763,6 +2763,17 @@ Style:
     // back to the curated bank — the oral never stalls.
     const DPE_TOPICS = ['Airspace','Weather','Aerodynamics','Regulations','Emergencies','Navigation','Systems','Human Factors'];
 
+    // Shared voice/style guidance for every DPE prompt, mirrored from the CFI so
+    // the examiner sounds like the same FAA-accurate instructor — professional,
+    // precise, citing the FAR/AIM. This is what gives the oral the CFI's tone
+    // instead of a flat, canned feel.
+    const DPE_STYLE = `Voice & style:
+- Speak as a real FAA Designated Pilot Examiner would in a checkride oral: semi-formal, professional, precise.
+- Avoid colloquialisms and casual idioms (e.g., "gonna", "no biggie", "ace it", "watch out for", "tricky bits"). Use straightforward, exact language.
+- When a rule applies, cite the specific reference (e.g., "14 CFR 91.155", an AIM section, the PHAK, or the ACS).
+- Use **bold** for key terms and acronyms.
+- No filler, no over-explaining. Conversational but professional.`;
+
     async function generateAIQuestions(mode, count, avoidList) {
       const difficulty = mode === 'beginner' ? 'beginner (fundamentals, friendly)'
                        : mode === 'advanced'  ? 'checkride-level (comprehensive, edge cases, multi-part)'
@@ -2863,6 +2874,19 @@ Provide 4-8 keys per question. Output the JSON array only.`;
       const cleanedPrev = Array.isArray(previousTurns)
         ? previousTurns.filter(t => t && t.q && t.a).map(t => ({ q: String(t.q), a: String(t.a) }))
         : [];
+      // PRIMARY: route grading through the SAME /api/chat engine the CFI uses.
+      // gradeViaChat asks full conversational Claude to read the student's
+      // actual words and react in the examiner's voice — this is what makes the
+      // DPE as capable as the CFI at interpreting answers. The constrained
+      // /api/grade endpoint is now only a fallback, and keyword matching is the
+      // last resort, so the oral never stalls.
+      try {
+        return await gradeViaChat(text, q, mode, cleanedPrev);
+      } catch (err) {
+        console.warn('Conversational grading via /api/chat failed, falling back to /api/grade:', err);
+      }
+
+      // FALLBACK: the structured /api/grade endpoint.
       try {
         const res = await apiFetch('/api/grade', {
           method: 'POST',
@@ -2891,18 +2915,9 @@ Provide 4-8 keys per question. Output the JSON array only.`;
           next_question: data.next_question || null
         };
       } catch (err) {
-        // /api/grade unavailable or errored. Rather than dropping straight to
-        // dumb keyword matching, route the analysis through the SAME /api/chat
-        // endpoint the CFI uses — this is what makes the DPE conversationalize:
-        // Claude actually reads the student's words and reacts in the examiner's
-        // voice. Keyword grading is the absolute last resort below that.
-        console.warn('/api/grade unavailable, analyzing answer via /api/chat:', err);
-        try {
-          return await gradeViaChat(text, q, mode, cleanedPrev);
-        } catch (err2) {
-          console.warn('Conversational grading failed, falling back to keyword grading:', err2);
-          return gradeAnswer(text, q);
-        }
+        // LAST RESORT: dumb keyword matching, so the oral never stalls.
+        console.warn('/api/grade unavailable, falling back to keyword grading:', err);
+        return gradeAnswer(text, q);
       }
     }
 
@@ -2933,7 +2948,9 @@ Provide 4-8 keys per question. Output the JSON array only.`;
 
 Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
 
-You will be given the question you asked, the ideal answer, any earlier turns on this topic, and the student's latest answer. Read the student's ACTUAL words and judge whether they demonstrated understanding — not whether they matched specific keywords. A correct idea phrased loosely is still correct; a confident answer that is wrong is wrong.
+${DPE_STYLE}
+
+You will be given the question you asked, the ideal answer, any earlier turns on this topic, and the student's latest answer. Read the student's ACTUAL words and judge whether they demonstrated understanding — not whether they matched specific keywords. A correct idea phrased loosely is still correct; a confident answer that is wrong is wrong. In your feedback, react specifically to what the student actually said and cite the governing FAR/AIM/PHAK/ACS reference whenever a rule is involved.
 
 Reply with ONLY a JSON object (no prose, no markdown fences) of this exact shape:
 {
@@ -3025,6 +3042,8 @@ Verdict guidance: "correct" = covered what matters for this difficulty; "partial
 
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) running a Private Pilot oral exam. Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
 
+${DPE_STYLE}
+
 You asked the student a question and they just sent a message. First decide what KIND of message it is:
 - "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
 - "request_topic": they are asking to cover or switch to a different subject (e.g. "can we do NTSB questions", "let's talk weather", "skip to emergencies"). Map it to the closest available topic.
@@ -3044,7 +3063,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
 }`;
 
       const userContent =
-        `The question on the table${isFollowup ? ' (a follow-up)' : ''}:\n${gradeable.q}\n\n` +
+        `The question on the table${isFollowup ? ' (a follow-up)' : ''}:\n${gradeable.spokenQ || gradeable.q}\n\n` +
         (gradeable.ideal ? `Ideal answer (reference, not a script):\n${gradeable.ideal}\n\n` : '') +
         prevBlock +
         `Student's latest message:\n${text}\n\n` +
@@ -3080,48 +3099,28 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
     // Honor a student's request to switch subjects: pull a question of the
     // requested topic to the current slot and ask it, without grading or
     // advancing the score. Returns true if the switch happened.
-    function switchToTopic(topicLabel) {
+    async function switchToTopic(topicLabel) {
       const t = state.test;
       if (!t) return false;
-      const label = (topicLabel || '').trim().toLowerCase();
-      if (!label) return false;
-      // The question on the table is the one the student wants to move AWAY
-      // from, so it must never be a candidate — searching it again is exactly
-      // what caused the examiner to re-ask the same question forever. Start the
-      // search at the NEXT slot and exclude the current question by text.
-      const currentQText = t.questions[t.index] ? t.questions[t.index].q : null;
-
-      const findFrom = (matcher) => {
-        for (let i = t.index + 1; i < t.questions.length; i++) {
-          const cand = t.questions[i];
-          if (cand.q === currentQText) continue;
-          if (matcher(cand.topic)) return i;
-        }
-        return -1;
-      };
-
-      // Exact topic match first (case-insensitive), then a loose substring
-      // match so an LLM-generated label like "NTSB reporting" still lands on a
-      // "NTSB" topic block.
-      let idx = findFrom(topic => topic.toLowerCase() === label);
+      let idx = -1;
+      for (let i = t.index; i < t.questions.length; i++) {
+        if (t.questions[i].topic === topicLabel) { idx = i; break; }
+      }
       if (idx === -1) {
-        idx = findFrom(topic => {
-          const ct = topic.toLowerCase();
-          return ct.includes(label) || label.includes(ct);
-        });
+        for (let i = 0; i < t.questions.length; i++) {
+          if (t.questions[i].topic === topicLabel) { idx = i; break; }
+        }
       }
       if (idx === -1) return false;
-
-      // idx is always > t.index here, so this splice is safe.
-      const [chosen] = t.questions.splice(idx, 1);
-      t.questions.splice(t.index, 0, chosen);
+      if (idx !== t.index) {
+        const [chosen] = t.questions.splice(idx, 1);
+        t.questions.splice(t.index, 0, chosen);
+      }
       t.followupIdx = -1;
       t.currentFollowup = null;
       t.currentTopicTurns = [];
       const q = t.questions[t.index];
-      t.history.push({ role: 'dpe-q', topic: q.topic, content: q.q });
-      document.getElementById('current-topic').textContent = q.topic;
-      addMsg('dpe-messages', 'bot', q.q);
+      await postQuestion(q);
       return true;
     }
 
@@ -3235,7 +3234,59 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       startTimer();
     }
 
-    function askMain() {
+    // Ask a seeded question in the examiner's own voice. Instead of posting the
+    // bank/AI question text verbatim (which made every session feel canned and
+    // repetitive), we hand the seed question + ideal answer to /api/chat — the
+    // SAME engine the CFI uses — and let the DPE phrase it naturally, varying the
+    // wording and scenario framing each time. Falls back to the seed text if the
+    // call fails, so the oral never stalls.
+    async function phraseQuestionInVoice(q, mode) {
+      const difficulty = mode === 'beginner' ? 'beginner (fundamentals, friendly)'
+                       : mode === 'advanced'  ? 'checkride-level (comprehensive, may be multi-part)'
+                       : 'intermediate (specific conditions and judgment)';
+      const system = `You are AVIX acting as an FAA Designated Pilot Examiner asking ONE question during a Private Pilot oral exam at ${difficulty} difficulty.
+
+${DPE_STYLE}
+
+You are given a seed question (the concept to test) and a reference answer. Ask the student that question IN YOUR OWN WORDS — rephrase it naturally, vary the framing (a brief real-world scenario is welcome), and do NOT change which concept is being tested. Do not answer it, do not add commentary, do not preface with "Question:". Output ONLY the question you say to the student (one or two sentences, plain text, no markdown fences).`;
+      const user = `Seed question (concept to test): ${q.q}\n` +
+        (q.ideal ? `Reference answer (do not reveal): ${q.ideal}\n` : '') +
+        `Topic: ${q.topic || 'General'}\n\nAsk it now in your own voice.`;
+      const res = await apiFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `phrase failed (${res.status})`);
+      let out = String(data.reply || '').replace(/```/g, '').trim();
+      if (!out) throw new Error('empty phrasing');
+      return out;
+    }
+
+    // Post a question to the chat in the examiner's voice (async), recording the
+    // ACTUAL spoken text in history while keeping the seed's grading metadata
+    // (keys/ideal/topic) intact on t.questions so grading is unchanged.
+    async function postQuestion(q) {
+      const t = state.test;
+      let spoken = q.q;
+      showTyping('dpe-messages');
+      try {
+        spoken = await phraseQuestionInVoice(q, t.mode);
+      } catch (err) {
+        console.warn('Conversational question phrasing failed, using seed text:', err);
+        spoken = q.q;
+      }
+      clearTyping('dpe-messages');
+      // Remember what we actually asked so cumulative grading uses the spoken
+      // wording, not the seed wording.
+      q.spokenQ = spoken;
+      t.history.push({ role:'dpe-q', topic: q.topic, content: spoken });
+      document.getElementById('current-topic').textContent = q.topic;
+      addMsg('dpe-messages','bot', formatClaudeReply(spoken));
+    }
+
+    async function askMain() {
       const t = state.test;
       // Reshuffle when we've gone through the bank
       if (t.index >= t.questions.length) {
@@ -3274,10 +3325,9 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       t.followupIdx = -1;
       t.currentFollowup = null;
       t.currentTopicTurns = [];  // fresh topic — clear the cumulative context
-      t.history.push({ role:'dpe-q', topic: q.topic, content: q.q });
-      // Quiet topic indicator in the header — no in-chat "Question N • Topic" bubble.
-      document.getElementById('current-topic').textContent = q.topic;
-      addMsg('dpe-messages','bot', q.q);
+      // Ask it in the examiner's own voice (async). postQuestion handles the
+      // typing indicator, history, and topic header.
+      await postQuestion(q);
     }
 
     // Ask a follow-up generated by the AI grader. Replaces the old scripted
@@ -3361,12 +3411,10 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       if (turn && turn.intent === 'request_topic' && turn.requested_topic) {
         clearTyping('dpe-messages');
         if (turn.reply) addMsg('dpe-messages','bot', formatClaudeReply(turn.reply));
-        const switched = switchToTopic(turn.requested_topic);
+        const switched = await switchToTopic(turn.requested_topic);
         if (!switched) {
-          // Couldn't map the requested topic to a different question. The
-          // student asked to move on, so honor that by advancing to the next
-          // main question rather than re-stranding them on the current one.
-          await advanceMain();
+          // Couldn't map the topic — keep the current question in play.
+          addMsg('dpe-messages','bot', "I don't have a dedicated block for that one, but let's keep going with the question on the table.");
         }
         return;
       }
