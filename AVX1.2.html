@@ -2960,7 +2960,9 @@ Reply with ONLY a JSON object (no prose, no markdown fences) of this exact shape
   "next_question": "<if and only if verdict is 'partial': one short follow-up question probing the specific missing piece; otherwise null>"
 }
 
-Verdict guidance: "correct" = covered what matters for this difficulty; "partial" = right direction but missing a required piece (supply next_question); "wrong" = incorrect, contradicts the rule, or no real attempt (feedback should correct it concisely).`;
+CORE-ELEMENT RULE: If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or light on finer detail. Do NOT downgrade a basically-correct answer to "partial"/"wrong" merely for lack of depth. Depth scales with difficulty: at higher difficulty you expect more, but you obtain the missing depth by asking another follow-up question (via next_question), not by failing a sound core answer.
+
+Verdict guidance: "correct" = the core of the question is answered in its basic structure; "partial" = a required piece of the core is genuinely missing (supply next_question to probe it); "wrong" = incorrect, contradicts the rule, or no real attempt (feedback should correct it concisely).`;
 
       const userContent =
         `Question you asked:\n${q.q}\n\n` +
@@ -3046,6 +3048,8 @@ ${DPE_STYLE}
 
 You asked the student a question and they just sent a message. First decide what KIND of message it is:
 - "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
+
+CORE-ELEMENT RULE (applies to every answer, including follow-ups): If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or missing finer detail. Do NOT mark an answer "partial" or "wrong" just because it lacks depth. Depth scales with difficulty: as difficulty increases, MORE supporting information is expected, but you obtain it by asking additional follow-up questions, not by downgrading a basically-correct answer. Only use "partial" when a required piece of the core is genuinely missing (then ask one focused follow-up), and "wrong" only when the answer is incorrect, contradicts the rule, or is no real attempt. At checkride difficulty, ask more follow-ups to probe for the missing depth rather than failing a sound core answer.
 - "request_topic": they are asking to cover or switch to a different subject (e.g. "can we do NTSB questions", "let's talk weather", "skip to emergencies"). Map it to the closest available topic.
 - "question": they are asking YOU something — a clarification or a question about the material or the exam itself.
 - "meta": small talk, pacing ("slow down"), "not sure where to start", etc.
