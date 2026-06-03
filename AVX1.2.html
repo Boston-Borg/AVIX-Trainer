@@ -2609,6 +2609,120 @@ Style:
           { q: "Walk me through the DECIDE model.", keys: ['detect','estimate','choose','identify','do','evaluate'], ideal: "Detect a change, Estimate the need to react, Choose a desirable outcome, Identify actions, Do the necessary action, Evaluate the effect of the action. It's a closed loop — you keep cycling." },
         ],
       },
+
+      // ---- Expanded curated bank (added to widen the floor) ----
+      {
+        topic: 'Airspace',
+        q: "What are the basic VFR weather minimums for Class E airspace below 10,000 feet MSL during the day?",
+        keys: ['3','three','statute','visibility','500','below','1,000','1000','above','2,000','2000','horizontal','cloud'],
+        minHits: 3,
+        ideal: "3 statute miles visibility, and cloud clearance of 500 ft below, 1,000 ft above, and 2,000 ft horizontal (the '3-152' rule).",
+        followups: [
+          { q: "How do those minimums change in Class G below 1,200 AGL during the day?", keys: ['1','one','statute','clear of clouds','clear'], ideal: "1 statute mile visibility and remain clear of clouds during the day below 1,200 AGL." },
+        ],
+      },
+      {
+        topic: 'Regulations',
+        q: "Walk me through the currency requirements to carry passengers during the day.",
+        keys: ['three','3','takeoff','landing','90','ninety','days','same category','class','type'],
+        minHits: 3,
+        ideal: "Three takeoffs and three landings within the preceding 90 days in the same category, class, and (if required) type. The landings need not be full stop for day currency.",
+        followups: [
+          { q: "How does that change for carrying passengers at night?", keys: ['full stop','full-stop','night','one hour','1 hour','sunset','sunrise'], ideal: "At night (1 hour after sunset to 1 hour before sunrise) the three landings must be to a full stop, within the preceding 90 days." },
+        ],
+      },
+      {
+        topic: 'Regulations',
+        q: "You're planning a cross-country. What documents and inspections must be current for the aircraft to be airworthy?",
+        keys: ['airworthiness','registration','operating','weight','balance','arrow','annual','100','altimeter','transponder','elt','vor'],
+        minHits: 3,
+        ideal: "Documents: ARROW — Airworthiness cert, Registration, Radio (if intl), Operating limitations/POH, Weight & balance. Inspections: Annual (12 cal months), 100-hour if for hire, transponder (24 mo), altimeter/pitot-static (24 mo), ELT battery, VOR if IFR.",
+        followups: [
+          { q: "Which inspections are required every 24 calendar months?", keys: ['transponder','altimeter','pitot','static'], ideal: "Transponder (91.413) and the altimeter/pitot-static system (91.411) every 24 calendar months." },
+        ],
+      },
+      {
+        topic: 'Weather',
+        q: "Decode the significance of a METAR reporting 'BKN007' and tell me how it affects your VFR flight.",
+        keys: ['broken','700','ceiling','agl','below','marginal','ifr','5/8','coverage'],
+        minHits: 2,
+        ideal: "BKN007 means a broken layer (5/8 to 7/8 coverage) at 700 ft AGL — that's a ceiling at 700 AGL. That's well below VFR minimums for most operations and would put you in IFR/low-VFR conditions.",
+        followups: [
+          { q: "At what coverage does a layer become a 'ceiling'?", keys: ['broken','overcast','bkn','ovc','5/8'], ideal: "A ceiling is the lowest broken (BKN) or overcast (OVC) layer — i.e., 5/8 coverage or more." },
+        ],
+      },
+      {
+        topic: 'Weather',
+        q: "What is a temperature/dewpoint spread, and why do you care about it before a flight?",
+        keys: ['close','converge','fog','cloud','condensation','saturation','visibility','dew'],
+        minHits: 2,
+        ideal: "The spread is the gap between temperature and dewpoint. As they converge (small spread), the air is near saturation — fog or low clouds become likely, reducing visibility and ceilings. A small or shrinking spread is a red flag for IMC.",
+        followups: [],
+      },
+      {
+        topic: 'Aerodynamics',
+        q: "Explain what causes a stall and why a wing can stall at any airspeed or attitude.",
+        keys: ['critical angle','angle of attack','aoa','exceed','airflow','separat','any airspeed','load'],
+        minHits: 2,
+        ideal: "A stall occurs when the wing exceeds its critical angle of attack and airflow separates from the upper surface. Since it depends on angle of attack — not speed — a wing can stall at any airspeed or attitude, e.g. in an accelerated/high-G turn.",
+        followups: [
+          { q: "How does load factor in a steep turn affect stall speed?", keys: ['increase','square root','load factor','higher','accelerated'], ideal: "Stall speed increases with the square root of the load factor — a 60° bank doubles load factor (2 G) and raises stall speed by about 41%." },
+        ],
+      },
+      {
+        topic: 'Aerodynamics',
+        q: "Define the four left-turning tendencies and when each is most pronounced.",
+        keys: ['torque','slipstream','spiraling','p-factor','p factor','gyroscopic','precession','high power','low airspeed','climb'],
+        minHits: 3,
+        ideal: "Torque reaction, spiraling slipstream, P-factor (asymmetric thrust at high AOA), and gyroscopic precession. They're most pronounced at high power, low airspeed, and high angle of attack — e.g. initial takeoff/climb.",
+        followups: [],
+      },
+      {
+        topic: 'Systems',
+        q: "Walk me through how a normally aspirated piston engine's fuel/air mixture should be managed as you climb.",
+        keys: ['lean','altitude','rich','density','air','mixture','egt','roughness'],
+        minHits: 2,
+        ideal: "As you climb, air density drops so the mixture becomes richer. You lean the mixture with altitude to maintain the proper fuel/air ratio, smooth running, and best power/economy — typically leaning above ~3,000 ft density altitude per the POH.",
+        followups: [
+          { q: "What can happen if you run too rich at altitude?", keys: ['fouling','spark plug','rough','power','fuel','overheat'], ideal: "Excessively rich operation can foul spark plugs, cause rough running, waste fuel, and reduce power output." },
+        ],
+      },
+      {
+        topic: 'Systems',
+        q: "Your vacuum pump fails in flight. Which instruments are affected and how do you cope?",
+        keys: ['attitude','heading','gyro','indicator','turn coordinator','electric','partial panel','airspeed','altimeter','compass'],
+        minHits: 2,
+        ideal: "Vacuum-driven gyros — the attitude indicator and heading indicator — fail. You revert to partial panel using the electrically driven turn coordinator, plus the pitot-static instruments (airspeed, altimeter, VSI) and magnetic compass.",
+        followups: [],
+      },
+      {
+        topic: 'Navigation',
+        q: "You're lost on a VFR cross-country. Walk me through your plan of action.",
+        keys: ['climb','communicate','confess','comply','conserve','121.5','flight following','vor','landmark','heading','time'],
+        minHits: 3,
+        ideal: "Five C's: Climb (better comms/radar/visibility), Communicate (ATC, flight following, 121.5), Confess you're lost, Comply with ATC, Conserve fuel. Meanwhile try to fix position with landmarks, VOR cross-radials, or GPS.",
+        followups: [
+          { q: "What transponder code and frequency are used for emergencies?", keys: ['7700','121.5'], ideal: "Squawk 7700 and use 121.5 MHz, the emergency frequency." },
+        ],
+      },
+      {
+        topic: 'Emergencies',
+        q: "Engine fails at altitude. Talk me through your immediate actions.",
+        keys: ['best glide','pitch','airspeed','field','landing site','checklist','flow','restart','fuel','mayday','7700','121.5'],
+        minHits: 3,
+        ideal: "Establish best glide speed and pitch for it, pick a suitable landing site into wind, run the engine-failure/restart flow and checklist (fuel selector, mixture, mags, primer, carb heat), declare (Mayday, 121.5, squawk 7700), then secure the aircraft and brief passengers if no restart.",
+        followups: [
+          { q: "Why is best glide speed so important here?", keys: ['maximum','distance','range','glide ratio','farthest','options'], ideal: "Best glide gives the maximum gliding distance per altitude lost, maximizing your reachable landing options." },
+        ],
+      },
+      {
+        topic: 'Human Factors',
+        q: "Run me through the IMSAFE checklist and what each item screens for.",
+        keys: ['illness','medication','stress','alcohol','fatigue','emotion','eating'],
+        minHits: 4,
+        ideal: "IMSAFE — Illness, Medication, Stress, Alcohol (8 hours bottle-to-throttle, under 0.04 BAC), Fatigue, Emotion (some use Eating). It's a personal pre-flight fitness self-assessment.",
+        followups: [],
+      },
     ];
 
     // Difficulty configs. `followups` is the max number of chained sub-questions
@@ -2640,6 +2754,81 @@ Style:
     };
 
     function shuffle(a) { const arr=[...a]; for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+    // ---- AI question generation (hybrid freshness layer) -------------------
+    // At the start of each oral we ask Claude (via the same /api/chat endpoint
+    // the CFI uses) to invent a few brand-new scenario questions, told to AVOID
+    // anything recently asked. These are merged with the curated bank so every
+    // session feels fresh. If the call fails or returns junk, we silently fall
+    // back to the curated bank — the oral never stalls.
+    const DPE_TOPICS = ['Airspace','Weather','Aerodynamics','Regulations','Emergencies','Navigation','Systems','Human Factors'];
+
+    async function generateAIQuestions(mode, count, avoidList) {
+      const difficulty = mode === 'beginner' ? 'beginner (fundamentals, friendly)'
+                       : mode === 'advanced'  ? 'checkride-level (comprehensive, edge cases, multi-part)'
+                       : 'intermediate (specific conditions, exceptions, judgment)';
+      const avoid = (avoidList || []).slice(0, 40).map(s => '- ' + s).join('\n') || '(none yet)';
+      const sys = `You are an FAA Designated Pilot Examiner writing fresh oral-exam questions for a Private Pilot (PPL) checkride. Output ONLY valid minified JSON — no markdown, no prose, no code fences.`;
+      const user = `Write ${count} NEW practice oral questions at ${difficulty} difficulty for a PPL applicant.
+Spread them across these ACS areas: ${DPE_TOPICS.join(', ')}.
+Each question must be FAA-accurate and realistic for a real DPE oral.
+Do NOT duplicate or closely paraphrase any of these recently-asked questions:
+${avoid}
+
+Return a JSON array. Each element MUST have exactly these fields:
+{"topic":"<one of: ${DPE_TOPICS.join('|')}>","q":"<the question text>","keys":["<lowercase keyword/phrase a correct answer would include>", "..."],"minHits":<integer 2-4>,"ideal":"<a concise model answer>","followups":[]}
+Provide 4-8 keys per question. Output the JSON array only.`;
+      const res = await apiFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system: sys })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `generate failed (${res.status})`);
+      let raw = (data.reply || '').trim();
+      // Strip accidental code fences and isolate the JSON array.
+      raw = raw.replace(/^```(?:json)?/i, '').replace(/```$/,'').trim();
+      const start = raw.indexOf('['), end = raw.lastIndexOf(']');
+      if (start === -1 || end === -1) throw new Error('no JSON array in reply');
+      const arr = JSON.parse(raw.slice(start, end + 1));
+      if (!Array.isArray(arr)) throw new Error('parsed value not an array');
+      // Validate/normalize each entry; drop anything malformed.
+      return arr.filter(o => o && typeof o.q === 'string' && o.q.trim()).map(o => ({
+        topic: DPE_TOPICS.includes(o.topic) ? o.topic : 'Regulations',
+        q: String(o.q).trim(),
+        keys: Array.isArray(o.keys) ? o.keys.map(k => String(k).toLowerCase()) : [],
+        minHits: Number.isInteger(o.minHits) ? Math.max(1, Math.min(4, o.minHits)) : 2,
+        ideal: typeof o.ideal === 'string' ? o.ideal : '',
+        followups: [],
+        _aiGenerated: true,
+      }));
+    }
+
+    // Build the question queue for a session: curated bank (shuffled) plus a
+    // handful of freshly generated questions interleaved near the front so the
+    // student hits novel material early. Resolves to the merged queue; on any
+    // failure resolves to the shuffled bank alone.
+    async function buildSessionQueue(mode) {
+      const bank = shuffle(dpeBank);
+      try {
+        const recent = Array.from(state.dpe.recentlyAskedSet || []);
+        const fresh = await generateAIQuestions(mode, 6, recent.concat(dpeBank.map(b => b.q)));
+        if (!fresh.length) return bank;
+        // Interleave: alternate fresh and bank questions for the first stretch.
+        const merged = [];
+        const f = shuffle(fresh), b = bank;
+        let fi = 0, bi = 0;
+        while (fi < f.length || bi < b.length) {
+          if (fi < f.length) merged.push(f[fi++]);
+          if (bi < b.length) merged.push(b[bi++]);
+          if (bi < b.length) merged.push(b[bi++]);
+        }
+        return merged;
+      } catch (err) {
+        console.warn('AI question generation unavailable, using curated bank only:', err);
+        return bank;
+      }
+    }
 
     // Fallback keyword grader. Three verdicts: correct (all keys hit),
     // partial (some hit), wrong (none hit). Used when the AI grade call
@@ -3019,7 +3208,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       return null;
     }
 
-    function applyDuration(minutes) {
+    async function applyDuration(minutes) {
       const t = state.test;
       // clamp to a reasonable range
       minutes = Math.max(5, Math.min(240, minutes));
@@ -3029,14 +3218,19 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       t.startTime = Date.now();
 
       showTyping('dpe-messages');
-      setTimeout(() => {
-        clearTyping('dpe-messages');
-        const phrasing = minutes >= 60
-          ? `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} hour${minutes >= 120 ? 's' : ''}`
-          : `${minutes} minutes`;
-        addMsg('dpe-messages','bot', `Got it — we'll go for <strong>${phrasing}</strong>. ${t.cfg.startReadyLine}`);
-        setTimeout(() => askMain(), 700);
-      }, 600);
+      // Build a fresh queue (curated bank + AI-generated novel questions) while
+      // the "Got it" typing indicator is showing. Falls back to the bank alone
+      // if generation fails, so the oral always starts.
+      const queue = await buildSessionQueue(t.mode);
+      t.questions = queue;
+      t.index = 0;
+
+      clearTyping('dpe-messages');
+      const phrasing = minutes >= 60
+        ? `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} hour${minutes >= 120 ? 's' : ''}`
+        : `${minutes} minutes`;
+      addMsg('dpe-messages','bot', `Got it — we'll go for <strong>${phrasing}</strong>. ${t.cfg.startReadyLine}`);
+      setTimeout(() => askMain(), 700);
 
       startTimer();
     }
