@@ -2856,7 +2856,8 @@ Provide 4-8 keys per question. Output the JSON array only.`;
       }
       const min = q.minHits || 1;
       if (hits >= min) return { result: 'correct', hits, feedback: '', next_question: null };
-      if (hits > 0)    return { result: 'partial', hits, feedback: '', next_question: null };
+      // Partial answers (some keys hit) are now graded as correct, not partial.
+      if (hits > 0)    return { result: 'correct', hits, feedback: '', next_question: null };
       return { result: 'wrong', hits, feedback: '', next_question: null };
     }
 
@@ -2904,8 +2905,9 @@ Provide 4-8 keys per question. Output the JSON array only.`;
         // Map server verdict to internal grade. 'incorrect' from the API is
         // surfaced as 'wrong' in the frontend.
         const v = data.verdict;
+        // Partial verdicts are now treated as correct, not partial.
         const result = v === 'correct' ? 'correct'
-                    : v === 'partial' ? 'partial'
+                    : v === 'partial' ? 'correct'
                     : 'wrong';
         const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
         return {
@@ -2982,10 +2984,11 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
       const parsed = extractJsonObject(data.reply || '');
       if (!parsed || !parsed.verdict) throw new Error('Could not parse examiner JSON');
 
+      // Partial verdicts are now treated as correct, not partial.
       const result = parsed.verdict === 'correct' ? 'correct'
-                  : parsed.verdict === 'partial' ? 'partial'
+                  : parsed.verdict === 'partial' ? 'correct'
                   : 'wrong';
-      const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
+      const defaultScore = result === 'correct' ? 90 : 25;
       return {
         result,
         score: typeof parsed.score === 'number' ? parsed.score : defaultScore,
@@ -3086,8 +3089,9 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       const intent = ['answer','request_topic','question','meta'].includes(parsed.intent) ? parsed.intent : 'answer';
       const out = { intent, reply: typeof parsed.reply === 'string' ? parsed.reply : '' };
       if (intent === 'answer') {
+        // Partial verdicts are now treated as correct, not partial.
         out.result = parsed.verdict === 'correct' ? 'correct'
-                   : parsed.verdict === 'partial' ? 'partial'
+                   : parsed.verdict === 'partial' ? 'correct'
                    : 'wrong';
         out.score = typeof parsed.score === 'number' ? parsed.score : null;
         out.feedback = out.reply;  // the examiner's spoken reply IS the feedback
