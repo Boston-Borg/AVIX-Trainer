@@ -25,6 +25,11 @@ import os
 import logging
 from pathlib import Path
 
+import re
+
+import requests as http_requests  # FAA registry scraper (aircraft lookup)
+from bs4 import BeautifulSoup
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -1635,6 +1640,245 @@ def _utcnow_iso() -> str:
     """ISO-8601 timestamp in UTC, used for updated_at fields."""
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
+
+
+
+# ============================================================================
+#  AIRCRAFT LOOKUP — FAA N-number registry scraper + per-user saved aircraft
+#
+#  GET    /api/aircraft_lookup?n=N172SP       — live FAA registry lookup
+#  GET    /api/saved_aircraft                 — list caller's saved aircraft
+#  POST   /api/saved_aircraft                 — save one (upsert on n_number)
+#  DELETE /api/saved_aircraft/<n_number>      — remove one
+#
+#  The scraper parses the FAA inquiry result page. That page renders each
+#  fact as a label cell followed by a value cell inside plain <td> rows
+#  (verified against the live page for N172SP). We therefore parse by
+#  LABEL TEXT rather than by CSS class/id, which survives the FAA's
+#  periodic markup reshuffles far better than brittle selectors would.
+# ============================================================================
+
+FAA_REGISTRY_URL = (
+    "https://registry.faa.gov/aircraftinquiry/Search/NNumberResult?nNumberTxt={n}"
+)
+
+# Exact label text seen on the live FAA result page (lowercased for match).
+# Maps our clean JSON field -> the FAA label that precedes the value cell.
+_FAA_FIELD_LABELS = {
+    "manufacturer": "manufacturer name",
+    "model": "model",
+    "year": "mfr year",
+    "aircraft_type": "type aircraft",
+    "engine_type": "type engine",
+    "status": "status",
+    "serial_number": "serial number",
+}
+
+_N_NUMBER_RE = re.compile(r"^N?[0-9]{1,5}[A-Z]{0,2}$")
+
+
+def _normalize_n_number(raw: str) -> str | None:
+    """Uppercase, strip, ensure leading N. Returns None if not a plausible
+    US registration (digits then up to two letters, max 5 chars after N)."""
+    n = (raw or "").strip().upper().replace("-", "")
+    if not n:
+        return None
+    if not n.startswith("N"):
+        n = "N" + n
+    return n if _N_NUMBER_RE.match(n) else None
+
+
+def _faa_cell_pairs(soup):
+    """Yield (label_text, value_text) for every adjacent td/th pair in every
+    table row. The FAA page lays out facts as label-cell -> value-cell."""
+    for row in soup.find_all("tr"):
+        cells = row.find_all(["td", "th"])
+        for i in range(len(cells) - 1):
+            label = " ".join(cells[i].get_text(" ", strip=True).split())
+            value = " ".join(cells[i + 1].get_text(" ", strip=True).split())
+            if label:
+                yield label.lower(), value
+
+
+def _parse_faa_page(html_text: str, n_number: str) -> dict | None:
+    """Extract the fields we care about from the FAA inquiry result HTML.
+    Returns None when the page clearly has no registration data."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    out = {k: None for k in (
+        "n_number", "manufacturer", "model", "year", "aircraft_type",
+        "owner", "city", "state", "status", "engine_type", "mode_s_code",
+        "serial_number",
+    )}
+    out["n_number"] = n_number
+
+    seen_owner_section = False
+    page_text = soup.get_text(" ", strip=True).lower()
+
+    for label, value in _faa_cell_pairs(soup):
+        if not value or value.lower() in ("none", ""):
+            value_clean = None
+        else:
+            value_clean = value
+
+        # Aircraft-description fields (first occurrence wins).
+        for field, want in _FAA_FIELD_LABELS.items():
+            if label == want and out[field] is None:
+                out[field] = value_clean
+
+        # Mode S hex code — label reads "Mode S Code (Base 16 / Hex)".
+        if label.startswith("mode s code") and "16" in label and out["mode_s_code"] is None:
+            out["mode_s_code"] = value_clean
+
+        # Registered Owner block: its labels are the bare words below.
+        # "name" only matches exactly (so "manufacturer name" can't collide).
+        if label == "name" and out["owner"] is None:
+            out["owner"] = value_clean
+            seen_owner_section = True
+        elif label == "city" and out["city"] is None:
+            out["city"] = value_clean
+        elif label == "state" and out["state"] is None:
+            out["state"] = value_clean
+
+    # "Not found" heuristics: FAA renders phrases like "not assigned" /
+    # "not found" and, in every miss case, no Manufacturer Name row.
+    found_marker = "is assigned" in page_text or "assigned/reserved" in page_text
+    if out["manufacturer"] is None and not found_marker:
+        return None
+    if not seen_owner_section and out["manufacturer"] is None:
+        return None
+    return out
+
+
+@app.route("/api/aircraft_lookup", methods=["GET"])
+@require_auth
+def aircraft_lookup():
+    """Live FAA registry lookup by N-number.
+
+    Query params:
+        n — the N-number, with or without the leading N (e.g. "N172SP").
+
+    Returns:
+        { aircraft: { n_number, manufacturer, model, year, aircraft_type,
+                      owner, city, state, status, engine_type, mode_s_code,
+                      serial_number } }
+        or { error } with 400 (bad N-number), 404 (not registered),
+        502 (FAA site unreachable).
+    """
+    n_number = _normalize_n_number(request.args.get("n", ""))
+    if n_number is None:
+        return jsonify(error="Invalid N-number. Use 1-5 digits optionally "
+                             "followed by up to two letters, e.g. N172SP."), 400
+    try:
+        resp = http_requests.get(
+            FAA_REGISTRY_URL.format(n=n_number),
+            timeout=12,
+            headers={
+                # A plain UA: the FAA registry serves browsers; the default
+                # python-requests UA is sometimes rejected at the WAF.
+                "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) "
+                               "AppleWebKit/537.36 (KHTML, like Gecko) "
+                               "Chrome/124.0 Safari/537.36"),
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        resp.raise_for_status()
+    except http_requests.exceptions.Timeout:
+        return jsonify(error="The FAA registry did not respond in time. "
+                             "Try again in a minute."), 502
+    except http_requests.exceptions.RequestException as e:
+        log.warning("FAA registry fetch failed for %s: %s", n_number, e)
+        return jsonify(error="Could not reach the FAA registry. "
+                             "Try again in a minute."), 502
+
+    aircraft = _parse_faa_page(resp.text, n_number)
+    if aircraft is None or aircraft.get("manufacturer") is None:
+        return jsonify(error=f"{n_number} is not currently assigned to a "
+                             "registered aircraft."), 404
+    return jsonify(aircraft=aircraft)
+
+
+# ---- SAVED AIRCRAFT (per-user bookmarks of FAA lookups) --------------------
+
+@app.route("/api/saved_aircraft", methods=["GET"])
+@require_auth
+def list_saved_aircraft():
+    """List the caller's saved aircraft, newest first (max 100)."""
+    err = _require_db()
+    if err: return err
+    user = request.user
+    try:
+        resp = (
+            supabase_admin.table("saved_aircraft")
+            .select("id, n_number, data, created_at")
+            .eq("user_id", str(user.id))
+            .order("created_at", desc=True)
+            .limit(100)
+            .execute()
+        )
+        return jsonify(aircraft=resp.data or [])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to list saved_aircraft")
+        return jsonify(error=f"Read failed: {e}"), 500
+
+
+@app.route("/api/saved_aircraft", methods=["POST"])
+@require_auth
+def save_aircraft():
+    """Save (or re-save) an aircraft for the caller.
+
+    Body: { n_number: str, data: dict }  — data is the FAA lookup result.
+    Upserts on (user_id, n_number) so saving twice just refreshes the data.
+    Returns the saved row.
+    """
+    err = _require_db()
+    if err: return err
+    user = request.user
+    body = request.get_json(silent=True) or {}
+    n_number = _normalize_n_number(str(body.get("n_number") or ""))
+    if n_number is None:
+        return jsonify(error="Invalid N-number."), 400
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return jsonify(error="Missing aircraft data to save."), 400
+    payload = {
+        "user_id": str(user.id),
+        "n_number": n_number,
+        "data": data,
+    }
+    try:
+        resp = (
+            supabase_admin.table("saved_aircraft")
+            .upsert(payload, on_conflict="user_id,n_number")
+            .execute()
+        )
+        return jsonify(saved=(resp.data or [{}])[0])
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to upsert saved_aircraft")
+        return jsonify(error=f"Write failed: {e}"), 500
+
+
+@app.route("/api/saved_aircraft/<n_number>", methods=["DELETE"])
+@require_auth
+def delete_saved_aircraft(n_number: str):
+    """Remove a saved aircraft. Returns {ok: true} either way (idempotent)."""
+    err = _require_db()
+    if err: return err
+    user = request.user
+    n = _normalize_n_number(n_number)
+    if n is None:
+        return jsonify(error="Invalid N-number."), 400
+    try:
+        (
+            supabase_admin.table("saved_aircraft")
+            .delete()
+            .eq("user_id", str(user.id))
+            .eq("n_number", n)
+            .execute()
+        )
+        return jsonify(ok=True)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to delete saved_aircraft")
+        return jsonify(error=f"Delete failed: {e}"), 500
 
 
 # --- Entrypoint -------------------------------------------------------------

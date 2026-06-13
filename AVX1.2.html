@@ -561,6 +561,37 @@
         </div>
       </div>
 
+      <!-- Aircraft Lookup (FAA registry) -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <div class="bg-zinc-950 rounded-2xl p-6 md:p-8 border border-zinc-900">
+          <div class="mb-4">
+            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <i data-lucide="plane" class="w-5 h-5 text-blue-400"></i> Aircraft Lookup
+            </h2>
+            <p class="text-sm text-slate-400 mt-1">Look up any U.S.-registered aircraft by N-number — pulled live from the FAA registry.</p>
+          </div>
+
+          <form id="aircraft-lookup-form" class="flex flex-col sm:flex-row gap-2 mb-4">
+            <input id="aircraft-n-input" type="text" maxlength="7" placeholder="Enter an N-number, e.g. N172SP"
+                   class="flex-1 px-4 py-3 rounded-lg border outline-none text-sm" autocomplete="off" />
+            <button type="submit" id="aircraft-lookup-btn"
+                    class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2">
+              <span id="aircraft-lookup-btn-label" class="inline-flex items-center gap-2"><i data-lucide="search" class="w-4 h-4"></i> Look Up</span>
+            </button>
+          </form>
+
+          <div id="aircraft-lookup-error" class="hidden text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2 mb-4"></div>
+          <div id="aircraft-result" class="hidden mb-6"></div>
+
+          <div>
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">My Saved Aircraft</div>
+            <div id="saved-aircraft-list" class="space-y-2">
+              <div class="text-sm text-slate-500">Log in and save a lookup to build your hangar.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
     <!-- ============ CFI CHAT ============ -->
@@ -1297,10 +1328,11 @@
       if (_userStateLoaded) return;
       _userStateLoaded = true;
       // Run the three requests in parallel — they're independent.
-      const [prefsResp, oralsResp, chatsResp] = await Promise.allSettled([
+      const [prefsResp, oralsResp, chatsResp, aircraftResp] = await Promise.allSettled([
         apiFetch('/api/user_preferences'),
         apiFetch('/api/oral_exam_results?limit=10'),
         apiFetch('/api/chat_sessions?limit=50'),
+        apiFetch('/api/saved_aircraft'),
       ]);
 
       // --- Preferences ---
@@ -1350,6 +1382,15 @@
         } catch (_) {}
       }
 
+      // --- Saved aircraft (FAA lookups the user bookmarked) ---
+      if (aircraftResp.status === 'fulfilled' && aircraftResp.value.ok) {
+        try {
+          const data = await aircraftResp.value.json();
+          aircraftState.saved = Array.isArray(data.aircraft) ? data.aircraft : [];
+          renderSavedAircraftList();
+        } catch (_) {}
+      }
+
       // If the chat view was already opened (or about to be), make sure the
       // sidebar reflects the loaded sessions.
       const grid = document.getElementById('chat-history-list');
@@ -1358,6 +1399,183 @@
         renderQuickChips();
       }
     }
+
+
+    // ============================================================
+    //                 AIRCRAFT LOOKUP (FAA registry)
+    // ============================================================
+    // GET /api/aircraft_lookup scrapes the FAA N-number registry server-side;
+    // saved aircraft live in the saved_aircraft table (one row per user +
+    // tail number, upserted). Everything goes through apiFetch so auth and
+    // session-expiry handling match the rest of the app.
+
+    const aircraftState = { current: null, saved: [] };
+
+    const AIRCRAFT_FIELDS = [
+      ['manufacturer',  'Manufacturer'],
+      ['model',         'Model'],
+      ['year',          'Year'],
+      ['aircraft_type', 'Type'],
+      ['engine_type',   'Engine'],
+      ['serial_number', 'Serial Number'],
+      ['mode_s_code',   'Mode S (Hex)'],
+      ['owner',         'Registered Owner'],
+      ['city',          'City'],
+      ['state',         'State'],
+    ];
+
+    const MINI_PROP_HTML = '<span class="mini-prop" role="status" aria-label="Loading"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg></span>';
+
+    function showAircraftError(msg) {
+      const el = document.getElementById('aircraft-lookup-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+    function hideAircraftError() {
+      document.getElementById('aircraft-lookup-error').classList.add('hidden');
+    }
+
+    function renderAircraftResult(a, { justSaved = false } = {}) {
+      aircraftState.current = a;
+      const isSaved = justSaved || aircraftState.saved.some(s => s.n_number === a.n_number);
+      const rows = AIRCRAFT_FIELDS
+        .filter(([key]) => a[key])
+        .map(([key, label]) => `
+          <div>
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-0.5">${label}</div>
+            <div class="text-sm text-slate-100">${escapeHtml(String(a[key]))}</div>
+          </div>`).join('');
+      const el = document.getElementById('aircraft-result');
+      el.innerHTML = `
+        <div class="bg-zinc-900 rounded-xl p-5 border border-zinc-800 fade-in">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="text-2xl font-bold text-slate-100">${escapeHtml(a.n_number || '')}</div>
+              ${a.status ? `<span class="text-xs px-2 py-0.5 bg-zinc-950 border border-zinc-800 text-slate-300 rounded font-semibold">${escapeHtml(a.status)}</span>` : ''}
+            </div>
+            <button type="button" id="aircraft-save-btn" onclick="saveCurrentAircraft()" ${isSaved ? 'disabled' : ''}
+                    class="px-4 py-2 text-sm font-semibold rounded-lg transition ${isSaved
+                      ? 'bg-zinc-950 border border-zinc-800 text-slate-500 cursor-default'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'}">
+              ${isSaved ? 'Saved to My Aircraft' : 'Save to My Aircraft'}
+            </button>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">${rows}</div>
+        </div>`;
+      el.classList.remove('hidden');
+    }
+
+    async function handleAircraftLookup(event) {
+      event.preventDefault();
+      const input = document.getElementById('aircraft-n-input');
+      const n = (input.value || '').trim();
+      if (!n) { showAircraftError('Enter an N-number first, e.g. N172SP.'); return; }
+      hideAircraftError();
+      const btn = document.getElementById('aircraft-lookup-btn');
+      const label = document.getElementById('aircraft-lookup-btn-label');
+      const original = label.innerHTML;
+      btn.disabled = true;
+      label.innerHTML = MINI_PROP_HTML + ' Looking up…';
+      try {
+        const res = await apiFetch(`/api/aircraft_lookup?n=${encodeURIComponent(n)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showAircraftError(data.error || 'Lookup failed. Try again in a minute.');
+          document.getElementById('aircraft-result').classList.add('hidden');
+          return;
+        }
+        renderAircraftResult(data.aircraft);
+      } catch (err) {
+        // apiFetch throws on 401 (after routing to the login screen).
+        showAircraftError(err.message || 'Lookup failed.');
+      } finally {
+        btn.disabled = false;
+        label.innerHTML = original;
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    async function saveCurrentAircraft() {
+      const a = aircraftState.current;
+      if (!a) return;
+      const btn = document.getElementById('aircraft-save-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = MINI_PROP_HTML + ' Saving…'; }
+      try {
+        const res = await apiFetch('/api/saved_aircraft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ n_number: a.n_number, data: a }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { showAircraftError(data.error || 'Save failed.'); renderAircraftResult(a); return; }
+        // Refresh the saved list from the returned row (newest first, no dupes).
+        aircraftState.saved = [data.saved, ...aircraftState.saved.filter(s => s.n_number !== data.saved.n_number)];
+        renderSavedAircraftList();
+        renderAircraftResult(a, { justSaved: true });
+      } catch (err) {
+        showAircraftError(err.message || 'Save failed.');
+        renderAircraftResult(a);
+      }
+    }
+
+    function renderSavedAircraftList() {
+      const el = document.getElementById('saved-aircraft-list');
+      if (!el) return;
+      if (!aircraftState.saved.length) {
+        el.innerHTML = '<div class="text-sm text-slate-500">No saved aircraft yet — look one up and save it.</div>';
+        return;
+      }
+      el.innerHTML = aircraftState.saved.map(s => {
+        const d = s.data || {};
+        const sub = [d.manufacturer, d.model, d.year].filter(Boolean).join(' · ');
+        const owner = d.owner ? escapeHtml(d.owner) : '';
+        return `
+          <div class="flex items-center justify-between gap-3 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-slate-100">${escapeHtml(s.n_number)}</span>
+                <span class="text-xs text-slate-500 truncate">${escapeHtml(sub)}</span>
+              </div>
+              ${owner ? `<div class="text-xs text-slate-500 truncate mt-0.5">${owner}</div>` : ''}
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <button type="button" onclick="viewSavedAircraft('${escapeHtml(s.n_number)}')"
+                      class="text-xs text-blue-400 hover:text-blue-300 underline">View</button>
+              <button type="button" onclick="removeSavedAircraft('${escapeHtml(s.n_number)}')"
+                      class="text-xs text-rose-400 hover:text-rose-300 underline">Remove</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function viewSavedAircraft(nNumber) {
+      const row = aircraftState.saved.find(s => s.n_number === nNumber);
+      if (!row || !row.data) return;
+      renderAircraftResult(row.data);
+      document.getElementById('aircraft-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function removeSavedAircraft(nNumber) {
+      try {
+        const res = await apiFetch(`/api/saved_aircraft/${encodeURIComponent(nNumber)}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showAircraftError(data.error || 'Remove failed.');
+          return;
+        }
+        aircraftState.saved = aircraftState.saved.filter(s => s.n_number !== nNumber);
+        renderSavedAircraftList();
+        // If the removed aircraft is showing in the result card, re-render so
+        // its Save button comes back.
+        if (aircraftState.current && aircraftState.current.n_number === nNumber) {
+          renderAircraftResult(aircraftState.current);
+        }
+      } catch (err) {
+        showAircraftError(err.message || 'Remove failed.');
+      }
+    }
+
+    document.getElementById('aircraft-lookup-form').addEventListener('submit', handleAircraftLookup);
 
     // Rebuild the set of recently-asked main-question texts that the user
     // answered correctly/partially. Wrong answers are explicitly NOT included

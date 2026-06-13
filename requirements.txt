@@ -14,3 +14,7 @@ supabase>=2.8.0       # Supabase Python SDK (handles signup, login, JWT verify)
 
 # Payments
 stripe>=10.0.0        # Stripe Python SDK (Checkout, webhooks, Customer Portal)
+
+# Aircraft lookup (FAA N-number registry scraper)
+requests>=2.32.0
+beautifulsoup4>=4.12.0
