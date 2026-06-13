@@ -1905,34 +1905,33 @@ def delete_saved_aircraft(n_number: str):
 #  POST /api/cleanup — triggers the archive/delete sweep.
 #
 #  This endpoint is NOT protected by @require_auth (no user JWT needed) but
-#  IS protected by a static secret in the X-Cleanup-Secret header. Set the
-#  CLEANUP_SECRET env var on Render to a long random string. The Render cron
-#  job runs cleanup.py directly, but this endpoint lets you trigger a run
-#  manually (e.g. from curl or a monitoring dashboard) without SSHing in.
+#  IS protected by X-Cleanup-Secret header, which must equal SUPABASE_SERVICE_KEY —
+#  the privileged secret already set on every environment. No new env var needed.
+#  The Render cron job runs cleanup.py directly, but this endpoint lets you
+#  trigger a sweep manually (e.g. from curl) without SSHing in.
 # ============================================================================
 
 import cleanup as _cleanup_module
-
-CLEANUP_SECRET = os.environ.get("CLEANUP_SECRET", "").strip()
 
 
 @app.route("/api/cleanup", methods=["POST"])
 def api_cleanup():
     """Trigger an archive/delete sweep of stale data.
 
-    Authentication: X-Cleanup-Secret header must match the CLEANUP_SECRET
-    env var. Returns 503 if the secret is not configured (safe default).
+    Authentication: X-Cleanup-Secret header must match SUPABASE_SERVICE_KEY —
+    the same privileged secret already set on every environment, so no new
+    env var is required. Returns 503 if Supabase isn't configured at all.
 
     Returns:
         { "rows_deleted": int, "rows_archived": int, "elapsed_seconds": float,
           "errors": [str], "started_at": str, "finished_at": str }
     """
-    if not CLEANUP_SECRET:
-        log.warning("/api/cleanup called but CLEANUP_SECRET is not set — refusing")
+    if not SUPABASE_SERVICE_KEY:
+        log.warning("/api/cleanup called but SUPABASE_SERVICE_KEY is not set — refusing")
         return jsonify(error="Cleanup endpoint is not configured on this server."), 503
 
     provided = request.headers.get("X-Cleanup-Secret", "").strip()
-    if not provided or provided != CLEANUP_SECRET:
+    if not provided or provided != SUPABASE_SERVICE_KEY:
         log.warning("/api/cleanup: invalid or missing X-Cleanup-Secret header")
         return jsonify(error="Forbidden."), 403
 
