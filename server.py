@@ -1900,6 +1900,55 @@ def delete_saved_aircraft(n_number: str):
         return jsonify(error=f"Delete failed: {e}"), 500
 
 
+# ============================================================================
+#  DATA CLEANUP
+#  POST /api/cleanup — triggers the archive/delete sweep.
+#
+#  This endpoint is NOT protected by @require_auth (no user JWT needed) but
+#  IS protected by a static secret in the X-Cleanup-Secret header. Set the
+#  CLEANUP_SECRET env var on Render to a long random string. The Render cron
+#  job runs cleanup.py directly, but this endpoint lets you trigger a run
+#  manually (e.g. from curl or a monitoring dashboard) without SSHing in.
+# ============================================================================
+
+import cleanup as _cleanup_module
+
+CLEANUP_SECRET = os.environ.get("CLEANUP_SECRET", "").strip()
+
+
+@app.route("/api/cleanup", methods=["POST"])
+def api_cleanup():
+    """Trigger an archive/delete sweep of stale data.
+
+    Authentication: X-Cleanup-Secret header must match the CLEANUP_SECRET
+    env var. Returns 503 if the secret is not configured (safe default).
+
+    Returns:
+        { "rows_deleted": int, "rows_archived": int, "elapsed_seconds": float,
+          "errors": [str], "started_at": str, "finished_at": str }
+    """
+    if not CLEANUP_SECRET:
+        log.warning("/api/cleanup called but CLEANUP_SECRET is not set — refusing")
+        return jsonify(error="Cleanup endpoint is not configured on this server."), 503
+
+    provided = request.headers.get("X-Cleanup-Secret", "").strip()
+    if not provided or provided != CLEANUP_SECRET:
+        log.warning("/api/cleanup: invalid or missing X-Cleanup-Secret header")
+        return jsonify(error="Forbidden."), 403
+
+    log.info("/api/cleanup triggered via HTTP")
+    try:
+        # Pass the already-configured admin client so we don't open a second
+        # connection pool on every call.
+        result = _cleanup_module.run_cleanup(client=supabase_admin)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("/api/cleanup: run_cleanup raised an exception")
+        return jsonify(error=f"Cleanup failed: {exc}"), 500
+
+    status = 200 if not result["errors"] else 207  # 207 = partial success
+    return jsonify(result), status
+
+
 # --- Entrypoint -------------------------------------------------------------
 if __name__ == "__main__":
     # Render sets PORT; default to 8000 locally.
