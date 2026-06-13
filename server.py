@@ -128,12 +128,11 @@ def is_owner(email) -> bool:
 
 
 # --- Free trial limits -----------------------------------------------------
-# Non-subscribers (free accounts) get: 30 minutes total of CFI Chat, one
-# 30-minute DPE oral session, and NO study/quiz generation. State lives in
-# the trial_usage table.
-TRIAL_CHAT_WINDOW_MINUTES = 30
-TRIAL_ORAL_WINDOW_MINUTES = 30
-TRIAL_GENERATE_LIMIT       = 0
+# Non-subscribers (free accounts) get a single 30-minute trial window that
+# covers ALL features (chat, oral, generate, aircraft lookup). The clock
+# starts at account creation (trial_started_at in trial_usage). State lives
+# in the trial_usage table.
+TRIAL_DURATION_MINUTES = 30
 
 
 def _parse_iso(s):
@@ -183,95 +182,67 @@ def _upsert_trial(user_id, **fields):
 
 
 def get_trial_status(user_id) -> dict:
-    """Snapshot of the user's trial state — used by /api/me so the frontend
-    can show "5 minutes left" / "1 quiz left" etc."""
+    """Unified trial snapshot — used by /api/me and /api/trial_status.
+
+    Returns the simple unified clock based on trial_started_at:
+      {
+        "trial_active":    bool,
+        "is_paid":         False,        # always False here; caller checks subscription
+        "seconds_remaining": int | None,
+        "trial_expired":   bool,
+      }
+    """
     row = _read_trial_row(user_id) or {}
-    now = datetime.utcnow().replace(tzinfo=None)
+    started = _parse_iso(row.get("trial_started_at"))
+    now = datetime.utcnow()
 
-    # Chat: window starts when they sent their first message.
-    chat_first = _parse_iso(row.get("chat_first_at"))
-    if chat_first is None:
-        chat = {"used": False, "seconds_remaining": TRIAL_CHAT_WINDOW_MINUTES * 60}
-    else:
-        elapsed = (now - chat_first.replace(tzinfo=None)).total_seconds()
-        remaining = max(0, TRIAL_CHAT_WINDOW_MINUTES * 60 - elapsed)
-        chat = {
-            "used": True,
-            "seconds_remaining": int(remaining),
-            "expired": remaining <= 0,
+    if started is None:
+        # Row missing trial_started_at (pre-migration user). Backfill now.
+        now_iso = now.isoformat() + "Z"
+        _upsert_trial(user_id, trial_started_at=now_iso)
+        return {
+            "trial_active": True,
+            "is_paid": False,
+            "seconds_remaining": TRIAL_DURATION_MINUTES * 60,
+            "trial_expired": False,
         }
 
-    # Generate (study guide/flashcards/quiz): count-based.
-    generate_count = int(row.get("generate_count") or 0)
-    generate = {
-        "used": generate_count,
-        "remaining": max(0, TRIAL_GENERATE_LIMIT - generate_count),
-        "expired": generate_count >= TRIAL_GENERATE_LIMIT,
-    }
-
-    # Oral exam: window from first graded answer.
-    oral_first = _parse_iso(row.get("oral_first_at"))
-    if oral_first is None:
-        oral = {"used": False, "seconds_remaining": TRIAL_ORAL_WINDOW_MINUTES * 60}
-    else:
-        elapsed = (now - oral_first.replace(tzinfo=None)).total_seconds()
-        remaining = max(0, TRIAL_ORAL_WINDOW_MINUTES * 60 - elapsed)
-        oral = {
-            "used": True,
-            "seconds_remaining": int(remaining),
-            "expired": remaining <= 0,
-        }
-
-    any_available = (
-        not chat.get("expired", False)
-        or not generate.get("expired", False)
-        or not oral.get("expired", False)
-    )
+    elapsed = (now - started.replace(tzinfo=None)).total_seconds()
+    remaining = max(0, int(TRIAL_DURATION_MINUTES * 60 - elapsed))
     return {
-        "chat": chat,
-        "generate": generate,
-        "oral": oral,
-        "any_available": any_available,
+        "trial_active": remaining > 0,
+        "is_paid": False,
+        "seconds_remaining": remaining,
+        "trial_expired": remaining <= 0,
     }
 
 
 def _check_trial_usage(user_id, feature: str) -> bool:
-    """Check if the user can use `feature` under their trial allowance, and
-    record usage if so. Returns True (allow) or False (deny / paywall)."""
+    """Check whether the unified 30-minute trial window is still open.
+
+    The `feature` argument is kept for API compat with the decorator factory
+    but is no longer used — all features share the same single clock that
+    started at account creation (trial_started_at in trial_usage).
+
+    Returns True (allow) or False (deny / paywall).
+    """
     if supabase_admin is None:
         # Without admin client we can't track trial state. Fail closed so we
         # never give unintended free access in production.
         return False
 
     row = _read_trial_row(user_id) or {}
-    now = datetime.utcnow()
-    now_iso = now.isoformat() + "Z"
+    started = _parse_iso(row.get("trial_started_at"))
 
-    if feature == "chat":
-        first = _parse_iso(row.get("chat_first_at"))
-        if first is None:
-            _upsert_trial(user_id, chat_first_at=now_iso)
-            return True
-        elapsed = (now - first.replace(tzinfo=None)).total_seconds()
-        return elapsed < TRIAL_CHAT_WINDOW_MINUTES * 60
+    if started is None:
+        # Pre-migration user — backfill trial_started_at now so the clock
+        # begins from this moment (generous: gives them a full window).
+        now_iso = datetime.utcnow().isoformat() + "Z"
+        _upsert_trial(user_id, trial_started_at=now_iso)
+        return True
 
-    if feature == "generate":
-        count = int(row.get("generate_count") or 0)
-        if count < TRIAL_GENERATE_LIMIT:
-            _upsert_trial(user_id, generate_count=count + 1)
-            return True
-        return False
-
-    if feature == "grade":
-        first = _parse_iso(row.get("oral_first_at"))
-        if first is None:
-            _upsert_trial(user_id, oral_first_at=now_iso)
-            return True
-        elapsed = (now - first.replace(tzinfo=None)).total_seconds()
-        return elapsed < TRIAL_ORAL_WINDOW_MINUTES * 60
-
-    # Unknown feature — deny.
-    return False
+    elapsed = (datetime.utcnow() - started.replace(tzinfo=None)).total_seconds()
+    return elapsed < TRIAL_DURATION_MINUTES * 60
 
 # --- Flask app --------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent
@@ -397,6 +368,25 @@ def signup():
         # registered", "Password should be at least..."), safe to surface.
         return jsonify(error=str(e)), 400
 
+    # Start the trial clock the moment the account is created so the 30-minute
+    # window is tied to account creation, not first feature use. We use
+    # ON CONFLICT DO NOTHING so re-runs (e.g. duplicate signup) are safe.
+    if result.user and supabase_admin is not None:
+        try:
+            now_iso = datetime.utcnow().isoformat() + "Z"
+            supabase_admin.table("trial_usage").upsert(
+                {
+                    "user_id": str(result.user.id),
+                    "trial_started_at": now_iso,
+                    "updated_at": now_iso,
+                },
+                on_conflict="user_id",
+            ).execute()
+            log.info("Trial row created for new user %s", result.user.id)
+        except Exception:  # noqa: BLE001
+            # Non-fatal — the trial check will backfill on first use.
+            log.exception("Failed to create trial row for new user %s", result.user.id)
+
     if result.session is None:
         # Email confirmation is on; user must click the link before login.
         return jsonify(
@@ -464,22 +454,50 @@ def me():
     user = request.user
     if is_owner(user.email):
         sub_status = {"active": True, "status": "owner"}
-        trial_status = None  # owners don't need a trial
+        trial_info = None  # owners don't need a trial
     elif _stripe_configured():
         sub_status = get_subscription_status(user.id)
         # Only fetch trial status if the user isn't a paid subscriber.
-        trial_status = (
+        trial_info = (
             None if sub_status.get("active") else get_trial_status(user.id)
         )
     else:
         sub_status = {"active": True, "status": "stripe_not_configured"}
-        trial_status = None
+        trial_info = None
     return jsonify(
         user=_user_payload(user),
         subscription=sub_status,
-        trial=trial_status,
+        trial=trial_info,
         stripe_publishable_key=STRIPE_PUBLISHABLE_KEY or "",
     )
+
+
+# --- Trial status endpoint -------------------------------------------------
+
+@app.route("/api/trial_status", methods=["GET"])
+@require_auth
+def trial_status():
+    """Return the unified 30-minute trial status for the current user.
+
+    Returns:
+      { "trial_active": bool, "is_paid": bool,
+        "seconds_remaining": int|null, "trial_expired": bool }
+
+    Owners and active subscribers get is_paid=True and trial_active=False.
+    This endpoint is intentionally NOT gated by @require_paid_access so the
+    frontend can always poll it without triggering a 402.
+    """
+    user = request.user
+    if is_owner(user.email):
+        return jsonify(trial_active=False, is_paid=True,
+                       seconds_remaining=None, trial_expired=False)
+    if _stripe_configured():
+        sub = get_subscription_status(user.id)
+        if sub.get("active"):
+            return jsonify(trial_active=False, is_paid=True,
+                           seconds_remaining=None, trial_expired=False)
+    status = get_trial_status(user.id)
+    return jsonify(**status)
 
 
 # --- Subscriptions ---------------------------------------------------------
@@ -1751,6 +1769,7 @@ def _parse_faa_page(html_text: str, n_number: str) -> dict | None:
 
 @app.route("/api/aircraft_lookup", methods=["GET"])
 @require_auth
+@require_paid_access("lookup")
 def aircraft_lookup():
     """Live FAA registry lookup by N-number.
 

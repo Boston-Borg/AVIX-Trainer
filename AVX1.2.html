@@ -385,6 +385,15 @@
             <button onclick="goto('study')" data-nav="study" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Resources</button>
             <button onclick="goto('test')" data-nav="test" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">DPE Oral</button>
           </div>
+          <!-- Trial countdown badge — only visible for free-trial users -->
+          <div id="trial-countdown-badge" class="hidden items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition"
+               style="background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.35);color:#fcd34d;">
+            <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v4l2.5 1.5"/>
+            </svg>
+            <span id="trial-countdown-text">Trial: 30:00</span>
+          </div>
+
           <div class="relative">
             <button id="profile-btn" aria-label="Profile" aria-haspopup="true" aria-expanded="false" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
               <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
@@ -427,9 +436,8 @@
       <div class="flex items-center gap-2">
         <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
         <span>
-          <strong class="text-amber-100">Free plan</strong> —
-          <span id="trial-chat-remaining"  >30 min of CFI Chat</span>,
-          <span id="trial-oral-remaining"  >one 30-min DPE oral session</span>
+          <strong class="text-amber-100">Free trial</strong> —
+          <span id="trial-chat-remaining">30:00 remaining</span>
         </span>
       </div>
       <button id="trial-subscribe-btn" type="button"
@@ -458,6 +466,58 @@
               class="w-full mt-2 text-xs text-slate-500 hover:text-slate-300 transition py-1">
         Not now
       </button>
+    </div>
+  </div>
+
+  <!-- ============ TRIAL EXPIRED MODAL (non-dismissible paywall overlay) ============ -->
+  <!-- z-60 sits above the upgrade-modal (z-50) and everything else. No click-outside,
+       no X button, no Escape handler — it can only be cleared by subscribing. -->
+  <div id="trial-expired-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
+    <div class="relative glass rounded-2xl p-8 w-full max-w-md fade-in text-center">
+      <!-- Logo / icon -->
+      <div class="mx-auto mb-4 w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" class="w-7 h-7">
+          <path d="M22 16.92V19a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 11a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 0H6.09a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 14v2.92z"/>
+        </svg>
+      </div>
+      <div class="text-lg font-bold text-slate-100 mb-1">AVIX</div>
+      <h2 class="text-xl font-semibold text-white mb-2">Your free trial has ended</h2>
+      <p class="text-sm text-slate-400 mb-6">
+        You've used your 30-minute free trial. Upgrade to continue your training.
+      </p>
+      <button id="trial-expired-subscribe-btn" type="button"
+              class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
+        <span id="trial-expired-subscribe-text">Upgrade Now</span>
+        <span id="trial-expired-subscribe-spinner" class="hidden">
+          <svg class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-linecap="round" opacity=".3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        </span>
+      </button>
+      <p class="mt-3 text-xs text-slate-500">Already upgraded? <button onclick="location.reload()" class="underline hover:text-slate-300 transition">Refresh the page.</button></p>
+    </div>
+  </div>
+
+  <!-- ============ TRIAL WARNING TOAST ============ -->
+  <div id="trial-warning-toast" class="hidden fixed bottom-5 right-5 z-[55] w-80 max-w-[calc(100vw-2.5rem)]">
+    <div class="glass rounded-xl p-4 border border-amber-500/40 shadow-xl fade-in">
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#fbbf24" stroke-width="1.8" class="w-4 h-4">
+            <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v4l2.5 1.5"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-amber-200">Trial ends soon</div>
+          <div class="text-xs text-slate-400 mt-0.5">Your free trial ends in 5 minutes. Upgrade to keep access.</div>
+          <button onclick="handleSubscribeClick()" class="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition">
+            Upgrade now →
+          </button>
+        </div>
+        <button onclick="document.getElementById('trial-warning-toast').classList.add('hidden')"
+                class="flex-shrink-0 text-slate-600 hover:text-slate-400 transition" aria-label="Dismiss">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4"><path d="M4 4l8 8m0-8L4 12" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -848,26 +908,26 @@
         throw new Error('Your session expired. Please log in again.');
       }
       if (res.status === 402) {
-        // Trial used up for this feature OR no active subscription.
-        // We still return the response so the caller can show its local error,
-        // but we also fire-and-forget refresh /api/me so the banner/paywall
-        // catches up shortly. (The caller usually shows an inline error and
-        // the user can click Subscribe from the banner.)
+        // Trial expired or no active subscription. Show the non-dismissible
+        // expiry modal immediately so the user can't keep interacting. The
+        // caller still gets a thrown error for any local error UI it wants.
         try {
           const data = await res.clone().json();
-          // Re-render the screen after a moment so the global state matches.
-          setTimeout(async () => {
-            const me = await fetchMe();
-            routeToScreen(me);
-          }, 50);
-          const err = new Error(data.error || 'Subscription required.');
+          showTrialExpiredModal();
+          stopTrialPolling();
+          const err = new Error(data.error || 'Your free trial has ended.');
           err.status = 402;
           err.feature = data.feature;
           err.trial = data.trial;
           throw err;
         } catch (e) {
           if (e?.status === 402) throw e;
-          // Otherwise fall through and return res for caller to handle.
+          // JSON parse failed — still show modal.
+          showTrialExpiredModal();
+          stopTrialPolling();
+          const err = new Error('Your free trial has ended.');
+          err.status = 402;
+          throw err;
         }
       }
       return res;
@@ -937,43 +997,185 @@
       loadUserState().catch(e => console.warn('loadUserState:', e));
       const profileBtn = document.getElementById('profile-btn');
       if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
-      // Trial banner: only visible if user is on a trial (no active sub but
-      // still has at least one feature available). Owners get null trial.
+
+      // Trial banner + countdown badge.
+      stopTrialPolling();  // cancel any previous poll loop
       if (trial && !subscription?.active) {
-        document.getElementById('trial-banner').classList.remove('hidden');
-        updateTrialBannerCounters(trial);
+        if (trial.trial_expired) {
+          // Trial already expired when the page loaded — block immediately.
+          showTrialExpiredModal();
+        } else {
+          // Show banner + start live countdown.
+          document.getElementById('trial-banner').classList.remove('hidden');
+          updateTrialBannerCounters(trial);
+          startTrialPolling(trial.seconds_remaining);
+        }
       }
     }
 
-    // Format the per-feature counters inside the trial banner from /api/me data.
+    // Format MM:SS from seconds.
+    function fmtTrialTime(s) {
+      if (!s || s <= 0) return '0:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${String(sec).padStart(2, '0')}`;
+    }
+
+    // Update the countdown badge in the nav.
+    function updateTrialCountdownBadge(secondsRemaining) {
+      const badge = document.getElementById('trial-countdown-badge');
+      const text  = document.getElementById('trial-countdown-text');
+      if (!badge || !text) return;
+      if (secondsRemaining == null || secondsRemaining <= 0) {
+        badge.classList.add('hidden');
+        badge.classList.remove('flex');
+        return;
+      }
+      text.textContent = `Trial: ${fmtTrialTime(secondsRemaining)}`;
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+      // Amber warning color when ≤ 5 min remain.
+      if (secondsRemaining <= 300) {
+        badge.style.background = 'rgba(239,68,68,0.12)';
+        badge.style.borderColor = 'rgba(239,68,68,0.4)';
+        badge.style.color = '#fca5a5';
+      } else {
+        badge.style.background = 'rgba(245,158,11,0.1)';
+        badge.style.borderColor = 'rgba(245,158,11,0.35)';
+        badge.style.color = '#fcd34d';
+      }
+    }
+
+    // Show the non-dismissible trial-expired modal.
+    function showTrialExpiredModal() {
+      // Hide countdown badge — no point showing it.
+      const badge = document.getElementById('trial-countdown-badge');
+      if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
+      // Hide any trial banner.
+      document.getElementById('trial-banner')?.classList.add('hidden');
+      // Show the modal.
+      const modal = document.getElementById('trial-expired-modal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    // Wire the Upgrade Now button inside the expiry modal.
+    function initTrialExpiredModal() {
+      document.getElementById('trial-expired-subscribe-btn')
+        ?.addEventListener('click', async () => {
+          const btn  = document.getElementById('trial-expired-subscribe-btn');
+          const spin = document.getElementById('trial-expired-subscribe-spinner');
+          const txt  = document.getElementById('trial-expired-subscribe-text');
+          if (btn) btn.disabled = true;
+          if (spin) spin.classList.remove('hidden');
+          if (txt)  txt.textContent = 'Redirecting…';
+          try {
+            await handleSubscribeClick();
+          } catch {
+            // handleSubscribeClick already surfaces errors via showPaywallMessage;
+            // re-enable in case we're still on this page.
+            if (btn) btn.disabled = false;
+            if (spin) spin.classList.add('hidden');
+            if (txt)  txt.textContent = 'Upgrade Now';
+          }
+        });
+    }
+
+    // Show the 5-minute warning toast (once per session via localStorage flag).
+    function maybeShowTrialWarningToast() {
+      if (localStorage.getItem('avix_trial_warning_shown')) return;
+      localStorage.setItem('avix_trial_warning_shown', '1');
+      const toast = document.getElementById('trial-warning-toast');
+      if (toast) toast.classList.remove('hidden');
+      // Auto-dismiss after 12 seconds.
+      setTimeout(() => toast?.classList.add('hidden'), 12000);
+    }
+
+    // ---- Update the trial banner text from the unified trial object ----
+    // trial is { trial_active, is_paid, seconds_remaining, trial_expired }
     function updateTrialBannerCounters(trial) {
-      const fmtSeconds = (s) => {
-        if (s <= 0) return 'expired';
-        const m = Math.floor(s / 60);
-        return m >= 1 ? `${m} min remaining` : `<1 min remaining`;
-      };
       const chatEl = document.getElementById('trial-chat-remaining');
-      const genEl  = document.getElementById('trial-gen-remaining');
       const oralEl = document.getElementById('trial-oral-remaining');
-      if (chatEl) {
-        chatEl.textContent = trial.chat?.expired
-          ? 'CFI Chat used'
-          : (trial.chat?.used
-              ? `CFI Chat: ${fmtSeconds(trial.chat.seconds_remaining)}`
-              : '30 min CFI Chat available');
+      if (!trial) return;
+      const rem = trial.seconds_remaining ?? 0;
+      const label = rem > 0 ? `${fmtTrialTime(rem)} remaining` : 'Trial ended';
+      if (chatEl) chatEl.textContent = label;
+      if (oralEl) oralEl.textContent = '';
+      updateTrialCountdownBadge(rem);
+    }
+
+    // ---- Trial polling ----
+    // Started from showAppShell() when the user is on a free trial.
+    // Calls /api/trial_status every 60 s, ticks the badge locally every second.
+    let _trialPollInterval = null;
+    let _trialTickInterval = null;
+    let _trialSecondsLeft  = null;
+
+    function stopTrialPolling() {
+      clearInterval(_trialPollInterval);
+      clearInterval(_trialTickInterval);
+      _trialPollInterval = null;
+      _trialTickInterval = null;
+    }
+
+    async function _fetchTrialStatus() {
+      try {
+        const res = await apiFetch('/api/trial_status');
+        if (!res.ok) return null;
+        return await res.json();
+      } catch { return null; }
+    }
+
+    function _handleTrialStatus(status) {
+      if (!status) return;
+      if (status.is_paid) {
+        // User just upgraded — clear everything trial-related.
+        stopTrialPolling();
+        updateTrialCountdownBadge(null);
+        document.getElementById('trial-banner')?.classList.add('hidden');
+        document.getElementById('trial-expired-modal')?.classList.add('hidden');
+        return;
       }
-      if (genEl) {
-        genEl.textContent = trial.generate?.expired
-          ? 'Quizzes/study used'
-          : `${trial.generate?.remaining ?? 1} study/quiz set available`;
+      _trialSecondsLeft = status.seconds_remaining ?? 0;
+      if (status.trial_expired) {
+        stopTrialPolling();
+        updateTrialCountdownBadge(0);
+        showTrialExpiredModal();
+        return;
       }
-      if (oralEl) {
-        oralEl.textContent = trial.oral?.expired
-          ? 'DPE oral session used'
-          : (trial.oral?.used
-              ? `DPE oral: ${fmtSeconds(trial.oral.seconds_remaining)}`
-              : 'one 30-min DPE oral session available');
+      updateTrialCountdownBadge(_trialSecondsLeft);
+      if (_trialSecondsLeft <= 300) {
+        maybeShowTrialWarningToast();
       }
+    }
+
+    function startTrialPolling(initialSecondsRemaining) {
+      stopTrialPolling();  // idempotent — cancel any prior poll loop
+      _trialSecondsLeft = initialSecondsRemaining ?? (30 * 60);
+
+      // Immediately apply the initial state from /api/me (no extra fetch needed).
+      updateTrialCountdownBadge(_trialSecondsLeft);
+      if (_trialSecondsLeft <= 0) { showTrialExpiredModal(); return; }
+      if (_trialSecondsLeft <= 300) { maybeShowTrialWarningToast(); }
+
+      // Tick badge every second (local decrement — no server round-trip).
+      _trialTickInterval = setInterval(() => {
+        if (_trialSecondsLeft == null) return;
+        _trialSecondsLeft = Math.max(0, _trialSecondsLeft - 1);
+        updateTrialCountdownBadge(_trialSecondsLeft);
+        if (_trialSecondsLeft <= 300 && _trialSecondsLeft > 0) {
+          maybeShowTrialWarningToast();
+        }
+        if (_trialSecondsLeft <= 0) {
+          clearInterval(_trialTickInterval);
+          showTrialExpiredModal();
+        }
+      }, 1000);
+
+      // Re-sync with the server every 60 seconds.
+      _trialPollInterval = setInterval(async () => {
+        const status = await _fetchTrialStatus();
+        _handleTrialStatus(status);
+      }, 60000);
     }
 
     // Fetch /api/me with the saved token. Returns the full payload
@@ -4307,6 +4509,7 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       // profile-menu sign-out.
       initAuthUI();
       initPaywallUI();
+      initTrialExpiredModal();
       // If Stripe just redirected us back, sync the subscription before
       // we decide which screen to show.
       const cameBackFromCheckout = await handleCheckoutReturn();
