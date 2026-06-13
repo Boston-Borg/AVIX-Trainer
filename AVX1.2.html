@@ -584,7 +584,8 @@
           <div id="aircraft-result" class="hidden mb-6"></div>
 
           <div>
-            <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">My Saved Aircraft</div>
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">My Saved Aircraft</div>
+            <p class="text-xs text-slate-500 mb-2">The CFI and DPE examiner tailor explanations and scenario questions to your <span class="text-blue-400 font-semibold">training aircraft</span>.</p>
             <div id="saved-aircraft-list" class="space-y-2">
               <div class="text-sm text-slate-500">Log in and save a lookup to build your hangar.</div>
             </div>
@@ -1409,7 +1410,47 @@
     // tail number, upserted). Everything goes through apiFetch so auth and
     // session-expiry handling match the rest of the app.
 
-    const aircraftState = { current: null, saved: [] };
+    const aircraftState = { current: null, saved: [], trainingN: null };
+    try { aircraftState.trainingN = localStorage.getItem('avx_training_aircraft') || null; } catch (_) {}
+
+    // The "training aircraft": the saved plane the CFI and DPE tailor
+    // questions and examples to. Explicit pick wins; otherwise the most
+    // recently saved aircraft is used.
+    function getTrainingAircraft() {
+      if (!aircraftState.saved.length) return null;
+      return aircraftState.saved.find(s => s.n_number === aircraftState.trainingN)
+          || aircraftState.saved[0];
+    }
+
+    function setTrainingAircraft(nNumber) {
+      aircraftState.trainingN = nNumber;
+      try { localStorage.setItem('avx_training_aircraft', nNumber); } catch (_) {}
+      renderSavedAircraftList();
+    }
+
+    // Appended to the CFI chat + conversational-DPE system prompts.
+    function aircraftContextBlock() {
+      const t = getTrainingAircraft();
+      if (!t || !t.data) return '';
+      const d = t.data;
+      const bits = [
+        `N-number: ${t.n_number}`,
+        (d.manufacturer || d.model) ? `Make/model: ${[d.manufacturer, d.model].filter(Boolean).join(' ')}${d.year ? ' (' + d.year + ')' : ''}` : null,
+        d.aircraft_type ? `Type: ${d.aircraft_type}` : null,
+        d.engine_type ? `Engine: ${d.engine_type}` : null,
+        (d.city && d.state) ? `Based: ${d.city}, ${d.state}` : null,
+      ].filter(Boolean);
+      return `\n\nSTUDENT'S TRAINING AIRCRAFT (from their saved FAA registry lookup):\n- ${bits.join('\n- ')}\nWhen helpful, tailor examples, numbers, and scenario questions to this specific aircraft — its systems, engine type, and performance class. Stay FAA-accurate. Do NOT invent exact POH figures for this tail number; use typical values for the type and say they are typical.`;
+    }
+
+    // One-line steer for the DPE question generator's user prompt.
+    function aircraftDpeHint() {
+      const t = getTrainingAircraft();
+      if (!t || !t.data) return '';
+      const d = t.data;
+      const desc = [d.manufacturer, d.model, d.year].filter(Boolean).join(' ');
+      return `\nThe student trains in a ${desc || 'saved aircraft'} (${t.n_number}${d.engine_type ? ', ' + d.engine_type + ' engine' : ''}). Where natural, frame 1-2 of the questions as scenarios in THIS aircraft — keep them FAA-accurate and do not invent exact POH numbers for it.`;
+    }
 
     const AIRCRAFT_FIELDS = [
       ['manufacturer',  'Manufacturer'],
@@ -1525,20 +1566,25 @@
         el.innerHTML = '<div class="text-sm text-slate-500">No saved aircraft yet — look one up and save it.</div>';
         return;
       }
+      const trainer = getTrainingAircraft();
       el.innerHTML = aircraftState.saved.map(s => {
         const d = s.data || {};
         const sub = [d.manufacturer, d.model, d.year].filter(Boolean).join(' · ');
         const owner = d.owner ? escapeHtml(d.owner) : '';
+        const isTrainer = trainer && trainer.n_number === s.n_number;
         return `
-          <div class="flex items-center justify-between gap-3 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
+          <div class="flex items-center justify-between gap-3 bg-zinc-900 border ${isTrainer ? 'border-blue-500/60' : 'border-zinc-800'} rounded-lg px-4 py-3">
             <div class="min-w-0">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-semibold text-slate-100">${escapeHtml(s.n_number)}</span>
                 <span class="text-xs text-slate-500 truncate">${escapeHtml(sub)}</span>
+                ${isTrainer ? '<span class="text-xs px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded font-semibold">TRAINING AIRCRAFT</span>' : ''}
               </div>
               ${owner ? `<div class="text-xs text-slate-500 truncate mt-0.5">${owner}</div>` : ''}
             </div>
             <div class="flex items-center gap-3 flex-shrink-0">
+              ${isTrainer ? '' : `<button type="button" onclick="setTrainingAircraft('${escapeHtml(s.n_number)}')"
+                      class="text-xs text-blue-400 hover:text-blue-300 underline">Train with this</button>`}
               <button type="button" onclick="viewSavedAircraft('${escapeHtml(s.n_number)}')"
                       class="text-xs text-blue-400 hover:text-blue-300 underline">View</button>
               <button type="button" onclick="removeSavedAircraft('${escapeHtml(s.n_number)}')"
@@ -2170,7 +2216,7 @@ Style:
         const res = await apiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT })
+          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT + aircraftContextBlock() })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -3248,7 +3294,7 @@ Style:
       const sys = `You are an FAA Designated Pilot Examiner writing fresh oral-exam questions for a Private Pilot (PPL) checkride. Output ONLY valid minified JSON — no markdown, no prose, no code fences.`;
       const user = `Write ${count} NEW practice oral questions at ${difficulty} difficulty for a PPL applicant.
 Spread them across these ACS areas: ${DPE_TOPICS.join(', ')}.
-Each question must be FAA-accurate and realistic for a real DPE oral.
+Each question must be FAA-accurate and realistic for a real DPE oral.${aircraftDpeHint()}
 Do NOT duplicate or closely paraphrase any of these recently-asked questions:
 ${avoid}
 
@@ -3513,7 +3559,7 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
 
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) running a Private Pilot oral exam. Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
 
-${DPE_STYLE}
+${DPE_STYLE}${aircraftContextBlock()}
 
 You asked the student a question and they just sent a message. First decide what KIND of message it is:
 - "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
@@ -3730,7 +3776,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
                        : 'intermediate (specific conditions and judgment)';
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner asking ONE question during a Private Pilot oral exam at ${difficulty} difficulty.
 
-${DPE_STYLE}
+${DPE_STYLE}${aircraftContextBlock()}
 
 You are given a seed question (the concept to test) and a reference answer. Ask the student that question IN YOUR OWN WORDS — rephrase it naturally, vary the framing (a brief real-world scenario is welcome), and do NOT change which concept is being tested. Do not answer it, do not add commentary, do not preface with "Question:". Output ONLY the question you say to the student (one or two sentences, plain text, no markdown fences).`;
       const user = `Seed question (concept to test): ${q.q}\n` +
