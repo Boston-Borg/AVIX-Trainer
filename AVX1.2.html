@@ -683,6 +683,9 @@
               <div id="quick-chips" class="flex flex-wrap gap-2"></div>
             </div>
 
+            <!-- Aircraft selector (optional) — tailors the CFI to a saved plane -->
+            <div class="aircraft-selector-slot flex flex-wrap items-center gap-2 mb-3"></div>
+
             <!-- Chat container -->
             <div class="bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden flex flex-col flex-1">
               <div id="chat-messages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scroll-thin"></div>
@@ -747,6 +750,9 @@
             </h1>
             <p class="text-slate-400">Pick your difficulty. Higher tiers ask harder scenario questions <em class="text-slate-200 not-italic">and</em> probe with deeper follow-ups.</p>
           </div>
+
+          <!-- Aircraft selector (optional) — tailors the oral to a saved plane -->
+          <div class="aircraft-selector-slot flex flex-wrap items-center gap-2 mb-6"></div>
 
           <div class="grid md:grid-cols-3 gap-4">
             <button onclick="startTest('beginner')" class="text-left bg-zinc-950 rounded-2xl p-6 border-2 border-zinc-900 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 transition">
@@ -1578,6 +1584,7 @@
           const data = await aircraftResp.value.json();
           aircraftState.saved = Array.isArray(data.aircraft) ? data.aircraft : [];
           renderSavedAircraftList();
+          renderAircraftSelectors();
         } catch (_) {}
       }
 
@@ -1599,12 +1606,14 @@
     // tail number, upserted). Everything goes through apiFetch so auth and
     // session-expiry handling match the rest of the app.
 
-    const aircraftState = { current: null, saved: [], trainingN: null };
+    const aircraftState = { current: null, saved: [], trainingN: null, polling: {}, useMine: true };
     try { aircraftState.trainingN = localStorage.getItem('avx_training_aircraft') || null; } catch (_) {}
+    // "Use my aircraft" preference (default on). The session checkbox toggles it.
+    try { aircraftState.useMine = (localStorage.getItem('avx_use_my_aircraft') !== '0'); } catch (_) {}
 
     // The "training aircraft": the saved plane the CFI and DPE tailor
-    // questions and examples to. Explicit pick wins; otherwise the most
-    // recently saved aircraft is used.
+    // questions and examples to. Explicit pick (from the saved list) wins;
+    // otherwise the most recently saved aircraft is used.
     function getTrainingAircraft() {
       if (!aircraftState.saved.length) return null;
       return aircraftState.saved.find(s => s.n_number === aircraftState.trainingN)
@@ -1615,6 +1624,71 @@
       aircraftState.trainingN = nNumber;
       try { localStorage.setItem('avx_training_aircraft', nNumber); } catch (_) {}
       renderSavedAircraftList();
+      renderAircraftSelectors();
+    }
+
+    // Toggle for the "Use my aircraft" checkbox shown in CFI Chat / DPE.
+    function setUseMyAircraft(on) {
+      aircraftState.useMine = !!on;
+      try { localStorage.setItem('avx_use_my_aircraft', on ? '1' : '0'); } catch (_) {}
+    }
+
+    // The N-number to attach to a CFI/DPE session (server injects its cached
+    // RAG context). Null when the box is unchecked or no aircraft is saved.
+    function selectedAircraftN() {
+      if (!aircraftState.useMine) return null;
+      const t = getTrainingAircraft();
+      return t ? t.n_number : null;
+    }
+
+    // Render the simple "Use my aircraft" checkbox into every session slot
+    // (one in CFI Chat, one in the DPE picker). Embedding happens at lookup
+    // time, so there's nothing to wait on here — just on/off.
+    function renderAircraftSelectors() {
+      const slots = document.querySelectorAll('.aircraft-selector-slot');
+      if (!slots.length) return;
+      const t = getTrainingAircraft();
+      let inner;
+      if (!t) {
+        inner = '<span class="text-xs text-slate-500">Save an aircraft on the Home tab to tailor your sessions to it.</span>';
+      } else {
+        const checked = aircraftState.useMine ? 'checked' : '';
+        inner =
+          '<label class="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">' +
+            `<input type="checkbox" ${checked} onchange="setUseMyAircraft(this.checked)" class="w-4 h-4 accent-blue-500">` +
+            `Use my aircraft <span class="text-slate-500">(${escapeHtml(t.n_number)})</span>` +
+            '<span class="cursor-help text-slate-500" title="Tailors questions and feedback to your specific aircraft. No added wait time." aria-label="About aircraft tailoring">&#9432;</span>' +
+          '</label>';
+      }
+      slots.forEach(slot => { slot.innerHTML = inner; });
+      ensureAircraftPolling();
+    }
+
+    // For any saved aircraft whose embeddings are still pending, poll
+    // /api/aircraft_status every 5s until processed, then flip it to "Ready".
+    function ensureAircraftPolling() {
+      for (const s of (aircraftState.saved || [])) {
+        if (s.processed_at) continue;
+        if (aircraftState.polling[s.n_number]) continue;
+        aircraftState.polling[s.n_number] = setInterval(() => pollAircraftStatus(s.n_number), 5000);
+        pollAircraftStatus(s.n_number);  // kick once now so a warm cache shows Ready immediately
+      }
+    }
+
+    async function pollAircraftStatus(nNumber) {
+      try {
+        const res = await apiFetch(`/api/aircraft_status?n=${encodeURIComponent(nNumber)}`);
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (data && data.processed) {
+          const row = aircraftState.saved.find(s => s.n_number === nNumber);
+          if (row) row.processed_at = data.processed_at || new Date().toISOString();
+          const t = aircraftState.polling[nNumber];
+          if (t) { clearInterval(t); delete aircraftState.polling[nNumber]; }
+          renderSavedAircraftList();
+          renderAircraftSelectors();
+        }
+      } catch (_) { /* transient network error — keep polling */ }
     }
 
     // Appended to the CFI chat + conversational-DPE system prompts.
@@ -1741,6 +1815,7 @@
         // Refresh the saved list from the returned row (newest first, no dupes).
         aircraftState.saved = [data.saved, ...aircraftState.saved.filter(s => s.n_number !== data.saved.n_number)];
         renderSavedAircraftList();
+        renderAircraftSelectors();   // new save → dropdown + Processing… indicator + polling
         renderAircraftResult(a, { justSaved: true });
       } catch (err) {
         showAircraftError(err.message || 'Save failed.');
@@ -1761,12 +1836,16 @@
         const sub = [d.manufacturer, d.model, d.year].filter(Boolean).join(' · ');
         const owner = d.owner ? escapeHtml(d.owner) : '';
         const isTrainer = trainer && trainer.n_number === s.n_number;
+        const ragBadge = s.processed_at
+          ? '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Ready</span>'
+          : '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Processing…</span>';
         return `
           <div class="flex items-center justify-between gap-3 bg-zinc-900 border ${isTrainer ? 'border-blue-500/60' : 'border-zinc-800'} rounded-lg px-4 py-3">
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-semibold text-slate-100">${escapeHtml(s.n_number)}</span>
                 <span class="text-xs text-slate-500 truncate">${escapeHtml(sub)}</span>
+                ${ragBadge}
                 ${isTrainer ? '<span class="text-xs px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded font-semibold">TRAINING AIRCRAFT</span>' : ''}
               </div>
               ${owner ? `<div class="text-xs text-slate-500 truncate mt-0.5">${owner}</div>` : ''}
@@ -1781,6 +1860,7 @@
             </div>
           </div>`;
       }).join('');
+      ensureAircraftPolling();  // keep the Ready/Processing badges live
     }
 
     function viewSavedAircraft(nNumber) {
@@ -2405,7 +2485,9 @@ Style:
         const res = await apiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT + aircraftContextBlock() })
+          // Aircraft context is now injected server-side from the RAG cache;
+          // we just pass the selected N-number (null if none).
+          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT, n_number: selectedAircraftN() })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -3483,7 +3565,7 @@ Style:
       const sys = `You are an FAA Designated Pilot Examiner writing fresh oral-exam questions for a Private Pilot (PPL) checkride. Output ONLY valid minified JSON — no markdown, no prose, no code fences.`;
       const user = `Write ${count} NEW practice oral questions at ${difficulty} difficulty for a PPL applicant.
 Spread them across these ACS areas: ${DPE_TOPICS.join(', ')}.
-Each question must be FAA-accurate and realistic for a real DPE oral.${aircraftDpeHint()}
+Each question must be FAA-accurate and realistic for a real DPE oral.
 Do NOT duplicate or closely paraphrase any of these recently-asked questions:
 ${avoid}
 
@@ -3493,7 +3575,7 @@ Provide 4-8 keys per question. Output the JSON array only.`;
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system: sys })
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system: sys, n_number: selectedAircraftN() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `generate failed (${res.status})`);
@@ -3598,7 +3680,8 @@ Provide 4-8 keys per question. Output the JSON array only.`;
             answer: text,
             ideal: q.ideal || '',
             difficulty,
-            previous_turns: cleanedPrev
+            previous_turns: cleanedPrev,
+            n_number: selectedAircraftN()
           })
         });
         const data = await res.json();
@@ -3677,7 +3760,7 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system, n_number: selectedAircraftN() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Chat grade failed (${res.status})`);
@@ -3748,7 +3831,7 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
 
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) running a Private Pilot oral exam. Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
 
-${DPE_STYLE}${aircraftContextBlock()}
+${DPE_STYLE}
 
 You asked the student a question and they just sent a message. First decide what KIND of message it is:
 - "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
@@ -3780,7 +3863,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system, n_number: selectedAircraftN() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Examiner turn failed (${res.status})`);
@@ -3965,7 +4048,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
                        : 'intermediate (specific conditions and judgment)';
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner asking ONE question during a Private Pilot oral exam at ${difficulty} difficulty.
 
-${DPE_STYLE}${aircraftContextBlock()}
+${DPE_STYLE}
 
 You are given a seed question (the concept to test) and a reference answer. Ask the student that question IN YOUR OWN WORDS — rephrase it naturally, vary the framing (a brief real-world scenario is welcome), and do NOT change which concept is being tested. Do not answer it, do not add commentary, do not preface with "Question:". Output ONLY the question you say to the student (one or two sentences, plain text, no markdown fences).`;
       const user = `Seed question (concept to test): ${q.q}\n` +
@@ -3974,7 +4057,7 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system })
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system, n_number: selectedAircraftN() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `phrase failed (${res.status})`);

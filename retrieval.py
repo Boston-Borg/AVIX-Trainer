@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -35,6 +36,13 @@ INDEX_DIR = PROJECT_ROOT / "knowledge" / "index"
 CHUNKS_PATH = INDEX_DIR / "chunks.jsonl"
 EMBEDDINGS_PATH = INDEX_DIR / "embeddings.npy"
 META_PATH = INDEX_DIR / "meta.json"
+
+# Parallel local index for per-aircraft chunks. Same directory, same embedding
+# model and on-disk shape as the FAA index above (a .jsonl of chunk metadata +
+# a .npy of row-aligned vectors) — see _AircraftIndex below. Kept separate from
+# the FAA index so building aircraft entries never rewrites the large FAA files.
+AIRCRAFT_CHUNKS_PATH = INDEX_DIR / "aircraft_chunks.jsonl"
+AIRCRAFT_EMBEDDINGS_PATH = INDEX_DIR / "aircraft_embeddings.npy"
 
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
 VOYAGE_MODEL = os.environ.get("VOYAGE_MODEL", "voyage-3")
@@ -188,6 +196,140 @@ def format_context(hits: list[Hit], max_chars: int = 8000) -> str:
         parts.append(block)
         used += len(block)
     return "\n---\n".join(parts)
+
+
+# ============================================================================
+#  AIRCRAFT INDEX — per-N-number chunks, embedded with the SAME Voyage model
+#  and stored in the SAME on-disk shape as the FAA index (a .jsonl of chunk
+#  metadata + a row-aligned .npy of vectors).
+#
+#  Unlike the FAA index, aircraft chunks are retrieved by their source
+#  namespace tag ("aircraft_{n_number}"), not by cosine similarity — a given
+#  session already knows which tail number it wants. We still embed and store
+#  the vectors so the storage pattern matches retrieval.py exactly and the
+#  chunks can participate in similarity search later if ever needed.
+# ============================================================================
+
+# Writes happen from background threads in server.py, so guard the rebuild.
+_aircraft_lock = threading.Lock()
+
+
+def _aircraft_source_tag(n_number: str) -> str:
+    """Namespace tag used as the `source` for a tail number's chunks."""
+    return f"aircraft_{(n_number or '').strip().upper()}"
+
+
+class _AircraftIndex:
+    """In-memory mirror of the aircraft chunk/vector files, kept row-aligned."""
+
+    def __init__(self) -> None:
+        self.chunks: list[dict] = []
+        self.embeddings: Optional[np.ndarray] = None  # (M, D), row-aligned
+        self.loaded: bool = False
+
+    def load(self) -> None:
+        if self.loaded:
+            return
+        self.loaded = True
+        if AIRCRAFT_CHUNKS_PATH.exists():
+            with AIRCRAFT_CHUNKS_PATH.open("r", encoding="utf-8") as f:
+                self.chunks = [json.loads(line) for line in f if line.strip()]
+        if AIRCRAFT_EMBEDDINGS_PATH.exists():
+            raw = np.load(AIRCRAFT_EMBEDDINGS_PATH).astype(np.float32)
+            self.embeddings = np.nan_to_num(raw, nan=0.0, posinf=0.0, neginf=0.0)
+        # Guard against a half-written pair: if counts disagree, trust chunks
+        # and drop the vectors (they'll be rebuilt on the next embed call).
+        if self.embeddings is not None and len(self.chunks) != self.embeddings.shape[0]:
+            self.embeddings = None
+
+    def persist(self) -> None:
+        INDEX_DIR.mkdir(parents=True, exist_ok=True)
+        # Write to temp files then atomically replace, so a crash mid-write
+        # never leaves a corrupt index behind.
+        tmp_chunks = AIRCRAFT_CHUNKS_PATH.with_name(AIRCRAFT_CHUNKS_PATH.name + ".tmp")
+        with tmp_chunks.open("w", encoding="utf-8") as f:
+            for c in self.chunks:
+                f.write(json.dumps(c, ensure_ascii=False) + "\n")
+        os.replace(tmp_chunks, AIRCRAFT_CHUNKS_PATH)
+
+        if self.embeddings is not None and self.embeddings.shape[0] == len(self.chunks):
+            # Temp name ends in .npy so np.save writes exactly this path
+            # (it only auto-appends .npy when the name lacks that suffix).
+            tmp_emb = AIRCRAFT_EMBEDDINGS_PATH.with_name(AIRCRAFT_EMBEDDINGS_PATH.name + ".tmp.npy")
+            np.save(tmp_emb, self.embeddings.astype(np.float32))
+            os.replace(tmp_emb, AIRCRAFT_EMBEDDINGS_PATH)
+
+
+_aircraft = _AircraftIndex()
+_aircraft.load()
+
+
+def embed_aircraft(n_number: str, texts: list[str]) -> int:
+    """Embed `texts` for one tail number and store them in the aircraft index.
+
+    Uses the EXACT same embedding call as document indexing — Voyage,
+    `VOYAGE_MODEL`, `input_type="document"`. Idempotent: any existing chunks
+    for this N-number are removed first, so re-running on a later lookup just
+    refreshes them. Returns the number of chunks stored.
+    """
+    texts = [t for t in (texts or []) if t and t.strip()]
+    tag = _aircraft_source_tag(n_number)
+    if not texts:
+        return 0
+    if _voyage_client is None:
+        print("[retrieval] VOYAGE_API_KEY missing; cannot embed aircraft chunks.")
+        return 0
+
+    # Embed OUTSIDE the lock (network call); only the in-memory rebuild + disk
+    # write need to be serialized.
+    result = _voyage_client.embed(
+        texts=texts,
+        model=VOYAGE_MODEL,
+        input_type="document",
+    )
+    new_vecs = np.array(result.embeddings, dtype=np.float32)
+    new_vecs = np.nan_to_num(new_vecs, nan=0.0, posinf=0.0, neginf=0.0)
+
+    with _aircraft_lock:
+        _aircraft.load()
+        # Drop any prior rows for this tail number (idempotent refresh).
+        keep_rows = [i for i, c in enumerate(_aircraft.chunks) if c.get("source") != tag]
+        kept_chunks = [_aircraft.chunks[i] for i in keep_rows]
+        if _aircraft.embeddings is not None and _aircraft.embeddings.shape[0] >= len(_aircraft.chunks):
+            kept_vecs = _aircraft.embeddings[keep_rows] if keep_rows else np.empty((0, new_vecs.shape[1]), dtype=np.float32)
+        else:
+            kept_vecs = np.empty((0, new_vecs.shape[1]), dtype=np.float32)
+
+        added_chunks = [
+            {"source": tag, "n_number": (n_number or "").strip().upper(),
+             "chunk_index": i, "text": t}
+            for i, t in enumerate(texts)
+        ]
+        _aircraft.chunks = kept_chunks + added_chunks
+        _aircraft.embeddings = (
+            np.vstack([kept_vecs, new_vecs]) if kept_vecs.size else new_vecs
+        )
+        _aircraft.persist()
+
+    return len(texts)
+
+
+def get_aircraft_context(n_number: str) -> list[str]:
+    """Return the stored chunk texts for one tail number, in chunk order.
+
+    Empty list if nothing has been embedded for this N-number yet.
+    """
+    tag = _aircraft_source_tag(n_number)
+    with _aircraft_lock:
+        _aircraft.load()
+        rows = [c for c in _aircraft.chunks if c.get("source") == tag]
+    rows.sort(key=lambda c: c.get("chunk_index", 0))
+    return [c["text"] for c in rows if c.get("text")]
+
+
+def aircraft_processed(n_number: str) -> bool:
+    """True if chunks for this tail number exist in the aircraft index."""
+    return bool(get_aircraft_context(n_number))
 
 
 # --- CLI sanity check -------------------------------------------------------

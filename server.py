@@ -23,6 +23,7 @@ Run in production (Render uses this command, see render.yaml):
 
 import os
 import logging
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -64,7 +65,7 @@ client = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 # as Anthropic above, so the server still boots if you forget to set the keys.
 from supabase import create_client
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
@@ -1029,6 +1030,11 @@ def chat():
                 # to plain Claude.
                 log.exception("Retrieval failed; falling back to no-RAG")
 
+    # Additive aircraft context: if the session passed an N-number and we have
+    # cached chunks for it, append them after the FAA RAG block. No N-number or
+    # no cache → empty string, so existing behavior is unchanged.
+    system_prompt += _aircraft_context_block(data.get("n_number"))
+
     try:
         response = client.messages.create(
             model=CLAUDE_MODEL,
@@ -1161,6 +1167,9 @@ def generate():
         "uncertain claims.)\n\n"
         f"{tone_rules}"
     )
+    # Additive aircraft context when a tail number is supplied (and cached).
+    system_prompt += _aircraft_context_block(data.get("n_number"))
+
     user_prompt = _PROMPTS[kind].format(topic=topic, count=count)
 
     # Bigger requests need more output room. Roughly 150 tokens per quiz/flash
@@ -1419,6 +1428,9 @@ def grade():
         '   "next_question": "<REQUIRED when verdict=\'partial\' — the focused follow-up that probes the specific missing required information. MUST be null when verdict=\'correct\' or verdict=\'incorrect\'. Never invent lateral, judgment, or scenario questions just to continue the conversation.>"}\n\n'
         "No commentary, no markdown fences."
     )
+    # Additive aircraft context when a tail number is supplied (and cached).
+    system_prompt += _aircraft_context_block(data.get("n_number"))
+
     # Format the previous-turns context as a labeled transcript so the model
     # can see the running conversation. Numbering makes it scannable.
     prev_turns_block = ""
@@ -1843,6 +1855,98 @@ def _parse_faa_page(html_text: str, n_number: str) -> Optional[dict]:
     return out
 
 
+# ---- AIRCRAFT RAG CACHE ----------------------------------------------------
+#  On first lookup we embed the aircraft's facts into the local vector index
+#  (retrieval.embed_aircraft) so later CFI/DPE sessions can pull them straight
+#  from the index instead of re-scraping the FAA registry. The embed runs on a
+#  background thread so the HTTP response is never blocked, and processed_at on
+#  the saved_aircraft row signals to the frontend that the cache is warm.
+
+def _aircraft_chunks_from_data(aircraft: dict) -> list[str]:
+    """Turn a parsed FAA lookup into the three structured text chunks we embed.
+    Missing fields render as 'unknown' so a chunk is never malformed."""
+    def g(key: str) -> str:
+        v = aircraft.get(key)
+        v = (str(v).strip() if v is not None else "")
+        return v or "unknown"
+
+    n_number = g("n_number")
+    return [
+        # Chunk 1 — Airframe
+        f"{g('year')} {g('manufacturer')} {g('model')}, N-number {n_number}, "
+        f"registered to {g('owner')} in {g('city')}, {g('state')}.",
+        # Chunk 2 — Engine & systems
+        f"Engine: {g('engine_type')}. Mode S: {g('mode_s_code')}.",
+        # Chunk 3 — Status
+        f"Aircraft type: {g('aircraft_type')}. Airworthiness status: {g('status')}.",
+    ]
+
+
+def _stamp_aircraft_processed(n_number: str, user_id: str) -> None:
+    """Mark every saved_aircraft row for this (user, tail) as embedded. No-op
+    if the user hasn't saved the aircraft yet — the row gets stamped on save."""
+    if supabase_admin is None:
+        return
+    try:
+        (
+            supabase_admin.table("saved_aircraft")
+            .update({"processed_at": datetime.now(timezone.utc).isoformat()})
+            .eq("user_id", str(user_id))
+            .eq("n_number", n_number)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to stamp processed_at for %s", n_number)
+
+
+def _embed_aircraft_job(n_number: str, aircraft: dict, user_id: str) -> None:
+    """Background job: embed the aircraft chunks, then stamp the saved row."""
+    try:
+        chunks = _aircraft_chunks_from_data(aircraft)
+        stored = retrieval.embed_aircraft(n_number, chunks)
+        if stored:
+            log.info("Embedded %d aircraft chunks for %s", stored, n_number)
+            _stamp_aircraft_processed(n_number, user_id)
+        else:
+            log.warning("No aircraft chunks embedded for %s (embeddings unavailable)", n_number)
+    except Exception:  # noqa: BLE001
+        log.exception("Aircraft embedding job failed for %s", n_number)
+
+
+def _start_aircraft_embedding(n_number: str, aircraft: dict, user_id: str) -> None:
+    """Fire-and-forget the embedding job on a daemon thread so it never blocks
+    the HTTP response. Skips the work if chunks already exist for this tail."""
+    try:
+        if retrieval.aircraft_processed(n_number):
+            # Already cached — just make sure the saved row reflects it.
+            _stamp_aircraft_processed(n_number, user_id)
+            return
+    except Exception:  # noqa: BLE001
+        log.exception("aircraft_processed check failed for %s", n_number)
+    threading.Thread(
+        target=_embed_aircraft_job,
+        args=(n_number, aircraft, user_id),
+        daemon=True,
+    ).start()
+
+
+def _aircraft_context_block(n_raw) -> str:
+    """Build the system-prompt block of cached aircraft chunks for an N-number.
+    Returns "" when no N-number is given or nothing is cached yet — so callers
+    can append unconditionally without altering behavior when absent."""
+    n_number = _normalize_n_number(str(n_raw or ""))
+    if n_number is None:
+        return ""
+    try:
+        chunks = retrieval.get_aircraft_context(n_number)
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to read aircraft context for %s", n_number)
+        return ""
+    if not chunks:
+        return ""
+    return f"\n\n### Aircraft Context ({n_number})\n" + "\n".join(chunks)
+
+
 @app.route("/api/aircraft_lookup", methods=["GET"])
 @require_auth
 @require_paid_access("lookup")
@@ -1889,6 +1993,12 @@ def aircraft_lookup():
     if aircraft is None or aircraft.get("manufacturer") is None:
         return jsonify(error=f"{n_number} is not currently assigned to a "
                              "registered aircraft."), 404
+
+    # Warm the RAG cache for this tail number on a background thread. This runs
+    # AFTER the response is built (the thread starts, the return ships the JSON)
+    # so the endpoint's latency is unaffected by the embedding work.
+    _start_aircraft_embedding(n_number, aircraft, str(request.user.id))
+
     return jsonify(aircraft=aircraft)
 
 
@@ -1904,7 +2014,7 @@ def list_saved_aircraft():
     try:
         resp = (
             supabase_admin.table("saved_aircraft")
-            .select("id, n_number, data, created_at")
+            .select("id, n_number, data, created_at, processed_at")
             .eq("user_id", str(user.id))
             .order("created_at", desc=True)
             .limit(100)
@@ -1946,7 +2056,12 @@ def save_aircraft():
             .upsert(payload, on_conflict="user_id,n_number")
             .execute()
         )
-        return jsonify(saved=(resp.data or [{}])[0])
+        saved_row = (resp.data or [{}])[0]
+        # Make sure this tail number is embedded. If the lookup already warmed
+        # the cache, this just stamps processed_at on the freshly-saved row;
+        # otherwise it kicks off the background embed from the saved data.
+        _start_aircraft_embedding(n_number, data, str(user.id))
+        return jsonify(saved=saved_row)
     except Exception as e:  # noqa: BLE001
         log.exception("Failed to upsert saved_aircraft")
         return jsonify(error=f"Write failed: {e}"), 500
@@ -1974,6 +2089,51 @@ def delete_saved_aircraft(n_number: str):
     except Exception as e:  # noqa: BLE001
         log.exception("Failed to delete saved_aircraft")
         return jsonify(error=f"Delete failed: {e}"), 500
+
+
+@app.route("/api/aircraft_status", methods=["GET"])
+@require_auth
+def aircraft_status():
+    """Report whether a tail number's RAG embeddings are ready.
+
+    Query params:
+        n — the N-number (with or without leading N).
+
+    Returns:
+        { n_number, processed: true,  processed_at: "<iso>" }  — cache warm
+        { n_number, processed: false }                          — still pending
+    Used by the frontend polling loop after a save while embedding runs.
+    """
+    err = _require_db()
+    if err: return err
+    n_number = _normalize_n_number(request.args.get("n", ""))
+    if n_number is None:
+        return jsonify(error="Invalid N-number."), 400
+    user = request.user
+    try:
+        resp = (
+            supabase_admin.table("saved_aircraft")
+            .select("processed_at")
+            .eq("user_id", str(user.id))
+            .eq("n_number", n_number)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        processed_at = rows[0].get("processed_at") if rows else None
+    except Exception as e:  # noqa: BLE001
+        log.exception("Failed to read aircraft_status")
+        return jsonify(error=f"Read failed: {e}"), 500
+
+    # Self-heal: if the embeddings exist locally but the row wasn't stamped
+    # (e.g. saved before the lookup's embed finished), stamp it now.
+    if not processed_at and retrieval.aircraft_processed(n_number):
+        _stamp_aircraft_processed(n_number, str(user.id))
+        processed_at = datetime.now(timezone.utc).isoformat()
+
+    if processed_at:
+        return jsonify(n_number=n_number, processed=True, processed_at=processed_at)
+    return jsonify(n_number=n_number, processed=False)
 
 
 # ============================================================================
