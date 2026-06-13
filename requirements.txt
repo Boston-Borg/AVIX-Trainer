@@ -1,5 +1,6 @@
 flask>=3.0.0
 flask-cors>=4.0.0
+flask-limiter>=3.5.0    # rate limiting for API endpoints
 anthropic>=0.39.0
 python-dotenv>=1.0.1
 gunicorn>=22.0.0

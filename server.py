@@ -24,14 +24,17 @@ Run in production (Render uses this command, see render.yaml):
 import os
 import logging
 from pathlib import Path
+from typing import Optional
 
 import re
 
 import requests as http_requests  # FAA registry scraper (aircraft lookup)
 from bs4 import BeautifulSoup
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 # Load variables from a local .env file if present. On Render, env vars come
@@ -188,7 +191,7 @@ def get_trial_status(user_id) -> dict:
       {
         "trial_active":    bool,
         "is_paid":         False,        # always False here; caller checks subscription
-        "seconds_remaining": int | None,
+        "seconds_remaining": Optional[int],
         "trial_expired":   bool,
       }
     """
@@ -250,12 +253,46 @@ HTML_FILE = "AVX1.2.html"  # the page you already have
 
 app = Flask(__name__, static_folder=str(PROJECT_ROOT), static_url_path="")
 
-# CORS: allow the browser to call /api/* from the same origin. If you ever
-# host the HTML separately, add that origin to the list below.
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# CORS: allow the browser to call /api/* from our domains only.
+# Domain: avix.study (reroutes to avix-roxn.onrender.com)
+CORS(app, resources={r"/api/*": {
+    "origins": [
+        "https://avix.study",
+        "https://www.avix.study",
+        "https://avix-roxn.onrender.com",
+    ]
+}})
+
+# Rate limiting: prevent abuse of API endpoints
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("avx")
+
+
+# --- Security headers -------------------------------------------------------
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+# --- HTTPS enforcement ------------------------------------------------------
+@app.before_request
+def enforce_https():
+    """Redirect HTTP requests to HTTPS in production (not in debug mode)."""
+    if not request.is_secure and not app.debug:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
 
 
 # --- Routes -----------------------------------------------------------------
@@ -265,9 +302,44 @@ def index():
     return send_from_directory(PROJECT_ROOT, HTML_FILE)
 
 
+def _check_database_tables() -> dict:
+    """Check that all required Supabase tables exist.
+
+    Returns a dict with table names as keys and their existence (bool) as values.
+    """
+    required_tables = [
+        "trial_usage",
+        "subscriptions",
+        "chat_sessions",
+        "saved_aircraft",
+        "oral_exam_results",
+        "archive_exam_results",
+    ]
+    status = {}
+
+    if supabase_admin is None:
+        # If Supabase isn't configured, we can't check — assume missing.
+        for table in required_tables:
+            status[table] = False
+        return status
+
+    for table in required_tables:
+        try:
+            # Try a simple select with limit 1 to verify the table exists.
+            supabase_admin.table(table).select("count").limit(1).execute()
+            status[table] = True
+        except Exception:  # noqa: BLE001
+            status[table] = False
+
+    return status
+
+
 @app.route("/api/health")
 def health():
     """Quick check that the server is up and whether the API key is wired."""
+    table_status = _check_database_tables()
+    all_tables_ok = all(table_status.values())
+
     return jsonify(
         status="ok",
         api_key_configured=bool(ANTHROPIC_API_KEY),
@@ -278,6 +350,8 @@ def health():
         model=CLAUDE_MODEL,
         rag_index_loaded=retrieval.index_ready(),
         rag_chunks=len(retrieval._index.chunks),
+        database_tables=table_status,
+        database_tables_ok=all_tables_ok,
     )
 
 
@@ -879,6 +953,7 @@ FAA EXCERPTS:
 
 
 @app.route("/api/chat", methods=["POST"])
+@limiter.limit("60 per minute")
 @require_auth
 @require_paid_access("chat")
 def chat():
@@ -1029,6 +1104,7 @@ _MAX_COUNT = {"study": 1, "flashcards": 50, "quiz": 50}
 
 
 @app.route("/api/generate", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @require_paid_access("generate")
 def generate():
@@ -1695,7 +1771,7 @@ _FAA_FIELD_LABELS = {
 _N_NUMBER_RE = re.compile(r"^N?[0-9]{1,5}[A-Z]{0,2}$")
 
 
-def _normalize_n_number(raw: str) -> str | None:
+def _normalize_n_number(raw: str) -> Optional[str]:
     """Uppercase, strip, ensure leading N. Returns None if not a plausible
     US registration (digits then up to two letters, max 5 chars after N)."""
     n = (raw or "").strip().upper().replace("-", "")
@@ -1718,7 +1794,7 @@ def _faa_cell_pairs(soup):
                 yield label.lower(), value
 
 
-def _parse_faa_page(html_text: str, n_number: str) -> dict | None:
+def _parse_faa_page(html_text: str, n_number: str) -> Optional[dict]:
     """Extract the fields we care about from the FAA inquiry result HTML.
     Returns None when the page clearly has no registration data."""
     soup = BeautifulSoup(html_text, "html.parser")
