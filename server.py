@@ -123,11 +123,12 @@ def is_owner(email) -> bool:
 
 
 # --- Free trial limits -----------------------------------------------------
-# Non-subscribers get a one-shot taste of each feature so they can see what
-# they'd be paying for. State lives in the trial_usage table.
-TRIAL_CHAT_WINDOW_MINUTES = 5
+# Non-subscribers (free accounts) get: 30 minutes total of CFI Chat, one
+# 30-minute DPE oral session, and NO study/quiz generation. State lives in
+# the trial_usage table.
+TRIAL_CHAT_WINDOW_MINUTES = 30
 TRIAL_ORAL_WINDOW_MINUTES = 30
-TRIAL_GENERATE_LIMIT       = 1
+TRIAL_GENERATE_LIMIT       = 0
 
 
 def _parse_iso(s):

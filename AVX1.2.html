@@ -289,6 +289,9 @@
         <div class="mt-6 text-center text-xs text-slate-500">
           Your quiz scores and oral exam history are saved to your account so you can pick up where you left off.
         </div>
+        <div class="mt-4 text-center">
+          <button type="button" onclick="showGuestHome()" class="text-xs text-slate-500 hover:text-slate-300 transition">&larr; Back to home</button>
+        </div>
       </div>
     </div>
   </section>
@@ -424,15 +427,36 @@
       <div class="flex items-center gap-2">
         <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
         <span>
-          <strong class="text-amber-100">Free trial</strong> —
-          <span id="trial-chat-remaining"  >5 min of CFI Chat</span>,
-          <span id="trial-gen-remaining"   >1 study/quiz set</span>,
-          <span id="trial-oral-remaining"  >1 oral exam</span>
+          <strong class="text-amber-100">Free plan</strong> —
+          <span id="trial-chat-remaining"  >30 min of CFI Chat</span>,
+          <span id="trial-oral-remaining"  >one 30-min DPE oral session</span>
         </span>
       </div>
       <button id="trial-subscribe-btn" type="button"
               class="bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium text-xs px-3 py-1.5 rounded-md transition">
         Subscribe — $20/mo
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ UPGRADE MODAL (free user clicked a locked feature) ============ -->
+  <div id="upgrade-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="hideUpgradeModal()"></div>
+    <div class="relative glass rounded-2xl p-6 w-full max-w-sm fade-in">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+          <i data-lucide="lock" class="w-5 h-5 text-amber-400"></i>
+        </div>
+        <div class="font-semibold text-slate-100">Subscribe to unlock</div>
+      </div>
+      <p id="upgrade-modal-msg" class="text-sm text-slate-300 mb-5"></p>
+      <button id="upgrade-modal-subscribe" type="button"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition">
+        Subscribe — $20/month
+      </button>
+      <button type="button" onclick="hideUpgradeModal()"
+              class="w-full mt-2 text-xs text-slate-500 hover:text-slate-300 transition py-1">
+        Not now
       </button>
     </div>
   </div>
@@ -831,6 +855,21 @@
       _hideAllScreens();
       document.getElementById('auth-screen').classList.remove('hidden');
     }
+    // Logged-out visitors can browse the HOME page only. The nav is visible
+    // but every other view routes to the auth screen (see goto()).
+    function showGuestHome() {
+      _hideAllScreens();
+      document.querySelector('nav').classList.remove('hidden');
+      document.querySelector('main').classList.remove('hidden');
+      window.isGuest = true;
+      window.currentUser = null;
+      window.currentTrial = null;
+      window.currentSubscription = null;
+      const profileBtn = document.getElementById('profile-btn');
+      if (profileBtn) profileBtn.title = 'Log in or create an account';
+      updateNavLocks();
+      goto('home');
+    }
     function showPaywallScreen(user, subscription) {
       _hideAllScreens();
       document.getElementById('paywall-screen').classList.remove('hidden');
@@ -853,8 +892,14 @@
       _hideAllScreens();
       document.querySelector('nav').classList.remove('hidden');
       document.querySelector('main').classList.remove('hidden');
+      window.isGuest = false;
       window.currentUser = user;
       window.currentTrial = trial;
+      window.currentSubscription = subscription;
+      updateNavLocks();
+      // If the user is sitting on a view they no longer have access to
+      // (e.g. their free time just ran out), send them home.
+      if (state?.view && featureLockReason(state.view)) goto('home');
       // Hydrate per-user state once the app shell is visible. Don't await —
       // the UI is already usable; persisted state hot-fills in the background.
       loadUserState().catch(e => console.warn('loadUserState:', e));
@@ -883,7 +928,7 @@
           ? 'CFI Chat used'
           : (trial.chat?.used
               ? `CFI Chat: ${fmtSeconds(trial.chat.seconds_remaining)}`
-              : '5 min CFI Chat available');
+              : '30 min CFI Chat available');
       }
       if (genEl) {
         genEl.textContent = trial.generate?.expired
@@ -892,10 +937,10 @@
       }
       if (oralEl) {
         oralEl.textContent = trial.oral?.expired
-          ? 'Oral exam used'
+          ? 'DPE oral session used'
           : (trial.oral?.used
-              ? `Oral exam: ${fmtSeconds(trial.oral.seconds_remaining)}`
-              : '1 oral exam available');
+              ? `DPE oral: ${fmtSeconds(trial.oral.seconds_remaining)}`
+              : 'one 30-min DPE oral session available');
       }
     }
 
@@ -919,16 +964,16 @@
     //   - no sub but trial has any feature available → app + trial banner
     //   - no sub and trial exhausted → paywall
     function routeToScreen(me) {
-      if (!me) { showAuthScreen(); return null; }
+      // Logged out: show the home page in browse-only mode. Creating an
+      // account is required to open any feature.
+      if (!me) { showGuestHome(); return null; }
       if (me.subscription?.active) {
         showAppShell(me.user, me.subscription, null);
-      } else if (me.trial?.any_available) {
-        showAppShell(me.user, me.subscription, me.trial);
       } else {
-        // Trial exhausted (or never started + no sub): show paywall.
-        const sub = me.subscription || {};
-        if (me.trial && !me.trial.any_available) sub.status = 'trial_used';
-        showPaywallScreen(me.user, sub);
+        // Free account: ALWAYS land on the app shell (home page) — never the
+        // full-screen paywall. Locked features (Resources always; CFI/DPE once
+        // their free time is used) are gated per-view in goto().
+        showAppShell(me.user, me.subscription, me.trial);
       }
       return me;
     }
@@ -1037,7 +1082,8 @@
       catch { /* server-side failure is harmless; we discard the token regardless */ }
       clearAuthToken();
       window.currentUser = null;
-      showAuthScreen();
+      // After signing out, land on the browse-only home page.
+      showGuestHome();
     }
 
     // Open/close helpers for the account dropdown menu.
@@ -1086,6 +1132,13 @@
           // Stop the event from bubbling to the document handler that closes
           // the menu when clicking outside.
           e.stopPropagation();
+          // Logged-out visitor: the profile button opens login/signup
+          // instead of the account dropdown.
+          if (window.isGuest) {
+            showAuthScreen();
+            switchAuthTab('login');
+            return;
+          }
           toggleProfileMenu();
         });
       }
@@ -1170,6 +1223,9 @@
         ?.addEventListener('click', handleLogout);
       // Trial banner's Subscribe button — same action as the paywall's.
       document.getElementById('trial-subscribe-btn')
+        ?.addEventListener('click', handleSubscribeClick);
+      // Upgrade modal's Subscribe button (locked-feature popup).
+      document.getElementById('upgrade-modal-subscribe')
         ?.addEventListener('click', handleSubscribeClick);
     }
 
@@ -1421,7 +1477,64 @@
     // ============================================================
     //                    NAVIGATION
     // ============================================================
+    // ---- Free-account feature gating ----
+    // Returns null if the view is accessible, otherwise a human message
+    // explaining the lock. Only free accounts (no active subscription, trial
+    // object present from /api/me) are gated; subscribers and owners pass.
+    // True for signed-in users on the free plan (no active subscription).
+    function isFreeAccount() {
+      return !window.currentSubscription?.active && !!window.currentTrial;
+    }
+
+    function featureLockReason(view) {
+      // Logged-out browsing: only the home page is viewable.
+      if (window.isGuest) {
+        return view === 'home' ? null : 'account-required';
+      }
+      if (window.currentSubscription?.active) return null;
+      const t = window.currentTrial;
+      if (!t) return null; // owners / unknown — backend still enforces
+      if (view === 'study') {
+        return 'Study guides, flashcards & quizzes are a subscriber feature. Subscribe to unlock unlimited study material.';
+      }
+      if (view === 'chat' && t.chat?.expired) {
+        return 'Your free 30 minutes of CFI Chat have been used. Subscribe for unlimited CFI Chat.';
+      }
+      if (view === 'test' && t.oral?.expired) {
+        return 'Your free 30-minute DPE oral session has been used. Subscribe for unlimited practice orals.';
+      }
+      return null;
+    }
+
+    function showUpgradeModal(msg) {
+      const modal = document.getElementById('upgrade-modal');
+      const msgEl = document.getElementById('upgrade-modal-msg');
+      if (msgEl) msgEl.textContent = msg || 'Subscribe to unlock the full study companion.';
+      if (modal) modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    function hideUpgradeModal() {
+      document.getElementById('upgrade-modal')?.classList.add('hidden');
+    }
+
+    // Dim nav links to views the free user can't open (visual hint only —
+    // goto() does the actual gating).
+    function updateNavLocks() {
+      document.querySelectorAll('.nav-link[data-nav]').forEach(btn => {
+        const locked = !!featureLockReason(btn.dataset.nav);
+        btn.classList.toggle('opacity-40', locked);
+      });
+    }
+
     function goto(view) {
+      // Logged-out visitors: any feature click goes to create-account/login.
+      if (window.isGuest && view !== 'home') {
+        showAuthScreen();
+        switchAuthTab('signup');
+        return;
+      }
+      const lockMsg = featureLockReason(view);
+      if (lockMsg) { showUpgradeModal(lockMsg); return; }
       state.view = view;
       document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
       document.getElementById('view-' + view).classList.remove('hidden');
@@ -2870,19 +2983,19 @@ Style:
     const dpeConfig = {
       beginner: {
         label: 'Beginner', followups: 2, passScore: 70,
-        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it conversational — I'll ask a question, you answer in your own words, and I'll walk us naturally through each topic the way a real oral feels. Brief affirmations, no drilling. If you don't know something, just say so and we'll move on.<br><br><strong>First, how long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`,
+        intro: `<strong>Welcome.</strong> I'm your DPE for this practice oral. We'll keep it conversational — I'll ask a question, you answer in your own words, and I'll walk us naturally through each topic the way a real oral feels. Brief affirmations, no drilling. If you don't know something, just say so and we'll move on.`,
         startReadyLine: "Ready when you are. Here's the first one:",
         wrongTone: "Not quite.",
       },
       intermediate: {
         label: 'Intermediate', followups: 3, passScore: 70,
-        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. At this level I expect the key ideas plus the more specific conditions that apply — night-currency rules, tailwheel rules, exceptions and variations on the headline answer. If you cover everything I'm looking for, we move on. If you miss a required piece, I'll probe that specific gap.<br><br><strong>How long would you like this session to last?</strong>`,
+        intro: `<strong>Welcome to the practice oral.</strong> I'm your DPE. At this level I expect the key ideas plus the more specific conditions that apply — night-currency rules, tailwheel rules, exceptions and variations on the headline answer. If you cover everything I'm looking for, we move on. If you miss a required piece, I'll probe that specific gap.`,
         startReadyLine: "Let's begin.",
         wrongTone: "Let me correct that.",
       },
       advanced: {
         label: 'Advanced', followups: 5, passScore: 70,
-        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. At this level I expect comprehensive answers: headline rules, all variations, alternative compliance paths, and edge cases. If anything required is missing, I'll drill on it — sometimes stacking several questions in one turn. If you cover everything, we move on. Don't bluff; if you don't know, say so.<br><br><strong>How long would you like this session to last?</strong>`,
+        intro: `<strong>This is the full-checkride simulation.</strong> I'm your DPE — I will not be coaching you, I'll be evaluating. At this level I expect comprehensive answers: headline rules, all variations, alternative compliance paths, and edge cases. If anything required is missing, I'll drill on it — sometimes stacking several questions in one turn. If you cover everything, we move on. Don't bluff; if you don't know, say so.`,
         startReadyLine: "Let's begin.",
         wrongTone: "That's wrong.",
       },
@@ -3298,8 +3411,12 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       document.getElementById('dpe-input').value = '';
       document.getElementById('timer').textContent = '—:—';
 
-      // Post the intro that asks for duration. Don't start asking questions yet.
-      addMsg('dpe-messages','bot', cfg.intro);
+      // Post the intro, then the duration prompt. Free accounts get a fixed
+      // 30-minute session — no duration choice is offered.
+      const durationAsk = isFreeAccount()
+        ? `<br><br>Your free practice oral is <strong>30 minutes</strong>. Tap the chip below to begin.`
+        : `<br><br><strong>How long would you like this session to last?</strong> Pick a chip below or just type a number of minutes.`;
+      addMsg('dpe-messages','bot', cfg.intro + durationAsk);
       setTimeout(() => addDurationChips(), 400);
     }
 
@@ -3309,12 +3426,16 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       const div = document.createElement('div');
       div.id = 'duration-chips';
       div.className = 'fade-in flex flex-wrap gap-2 ml-2';
-      div.innerHTML = `
-        <button onclick="setDuration(15)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">15 min</button>
-        <button onclick="setDuration(30)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">30 min</button>
-        <button onclick="setDuration(60)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">60 min</button>
-        <button onclick="setDuration(90)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">90 min</button>
-        <button onclick="setDuration(120)" class="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition">2 hr</button>
+      const chipCls = 'px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 hover:text-slate-100 text-slate-300 rounded-full transition';
+      // Free accounts get exactly one option: the 30-minute session.
+      div.innerHTML = isFreeAccount()
+        ? `<button onclick="setDuration(30)" class="${chipCls}">30 min</button>`
+        : `
+        <button onclick="setDuration(15)" class="${chipCls}">15 min</button>
+        <button onclick="setDuration(30)" class="${chipCls}">30 min</button>
+        <button onclick="setDuration(60)" class="${chipCls}">60 min</button>
+        <button onclick="setDuration(90)" class="${chipCls}">90 min</button>
+        <button onclick="setDuration(120)" class="${chipCls}">2 hr</button>
       `;
       wrap.appendChild(div);
       wrap.scrollTop = wrap.scrollHeight;
@@ -3352,6 +3473,8 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
 
     async function applyDuration(minutes) {
       const t = state.test;
+      // Free accounts: the session is always 30 minutes, whatever was typed.
+      if (isFreeAccount()) minutes = 30;
       // clamp to a reasonable range
       minutes = Math.max(5, Math.min(240, minutes));
       t.awaitingDuration = false;
