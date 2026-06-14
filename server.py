@@ -422,7 +422,10 @@ def require_auth(f):
 def _user_payload(user):
     """Shrink a Supabase user object down to the safe fields we send to the
     browser. Don't ever send the whole `user` — it can include internal flags."""
-    return {"id": user.id, "email": user.email}
+    # Display name lives in Supabase auth user_metadata (set at signup via
+    # options.data.full_name). Older accounts predate this and simply have None.
+    name = (user.user_metadata or {}).get("full_name")
+    return {"id": user.id, "email": user.email, "name": name}
 
 
 @app.route("/api/signup", methods=["POST"])
@@ -439,13 +442,21 @@ def signup():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
+    name = (data.get("name") or "").strip()
     if not email or not password:
         return jsonify(error="Email and password are required."), 400
     if len(password) < 8:
         return jsonify(error="Password must be at least 8 characters."), 400
 
     try:
-        result = supabase.auth.sign_up({"email": email, "password": password})
+        # Stash the display name in Supabase auth user_metadata — no new table
+        # or column. For supabase-py v2 the key is options.data, which maps to
+        # the created user's user_metadata. Only send it when we actually have a
+        # name so the metadata stays clean for edge cases.
+        credentials = {"email": email, "password": password}
+        if name:
+            credentials["options"] = {"data": {"full_name": name}}
+        result = supabase.auth.sign_up(credentials)
     except Exception as e:  # noqa: BLE001
         log.exception("Signup failed")
         # Supabase exception messages are user-friendly ("User already

@@ -6,6 +6,17 @@
   <title>AVIX — Your 24/7 PPL Study Companion</title>
   <meta name="description" content="AI-powered Private Pilot License coaching: CFI chat, study guides, and a conversational DPE oral exam simulator." />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    /* Re-map Tailwind's "blue" accent palette to the AVIX plum (#9E7B9B) so
+       every blue-* utility class across the app renders in purple — buttons,
+       links, icons, rings, indicators, and all their opacity variants. */
+    tailwind.config = {
+      theme: { extend: { colors: { blue: {
+        50:'#f4eff3', 100:'#e8dfe7', 200:'#d4c4d2', 300:'#c2a6bf', 400:'#b08dad',
+        500:'#9E7B9B', 600:'#856585', 700:'#6c526c', 800:'#523e52', 900:'#382a38', 950:'#241b24'
+      } } } }
+    };
+  </script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body {
@@ -45,7 +56,7 @@
       border: 1px solid rgba(239, 68, 68, 0.55);
     }
     .chat-msg-user {
-      background: #2563eb;
+      background: #856585;
       color: white;
       border-radius: 14px 14px 2px 14px;
     }
@@ -62,7 +73,7 @@
     @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
     .fade-in { animation: fadeIn 0.3s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .nav-active { color: #60a5fa !important; border-bottom-color: #60a5fa !important; }
+    .nav-active { color: #b08dad !important; border-bottom-color: #b08dad !important; }
     .scroll-thin::-webkit-scrollbar { width: 6px; }
     .scroll-thin::-webkit-scrollbar-track { background: #0f172a; }
     .scroll-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -76,8 +87,8 @@
       border-color: #334155;
     }
     input[type=text]:focus, textarea:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+      border-color: #9E7B9B;
+      box-shadow: 0 0 0 3px rgba(158, 123, 155, 0.22);
       outline: none;
     }
     /* Prose tweaks for dark study cards */
@@ -156,6 +167,12 @@
     .gradient-hero{ background:transparent !important; border-bottom:1px solid #2B3442; }
     .glass{ background:rgba(27,35,48,.6) !important; border:1px solid #2B3442 !important; backdrop-filter:blur(4px); }
     .runway-stripes{ background-image:repeating-linear-gradient(90deg,transparent 0 10px,rgba(194,163,107,.55) 10px 22px) !important; }
+    /* big brass AVIX hero wordmark — mirrors the guest homepage */
+    .app-avix-mark{ font-family:'Playfair Display',serif; font-weight:500;
+      font-size:clamp(4rem,11vw,8rem); line-height:.92; letter-spacing:.04em;
+      color:#C2A36B; margin:0 0 .3rem; }
+    .app-avix-tag{ font-family:'Playfair Display',serif; font-style:italic;
+      font-size:clamp(1.1rem,2.4vw,1.55rem); color:#A79F8B; margin:0 0 1.4rem; }
     .chat-msg-bot{ background:#121823 !important; border-color:#2B3442 !important; border-radius:2px !important; }
     .chat-msg-user{ background:rgba(194,163,107,.16) !important; border:1px solid rgba(194,163,107,.4) !important; color:#E7DFCC !important; border-radius:2px !important; }
     .chat-msg-system{ border-radius:2px !important; }
@@ -245,7 +262,7 @@
         <div class="flex items-center justify-center gap-3 mb-6">
           <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:40px;height:40px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
           <div>
-            <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+            <div class="font-bold text-xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
             <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
           </div>
         </div>
@@ -264,6 +281,12 @@
 
         <!-- The form (one form, the submit handler decides login vs signup) -->
         <form id="auth-form" class="space-y-4">
+          <!-- First name — signup only; shown/hidden by switchAuthTab(). -->
+          <div id="auth-name-field" class="hidden">
+            <label for="auth-name" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">First name</label>
+            <input id="auth-name" name="name" type="text" autocomplete="given-name"
+                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+          </div>
           <div>
             <label for="auth-email" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email</label>
             <input id="auth-email" name="email" type="email" required autocomplete="email"
@@ -303,7 +326,7 @@
           <div class="flex items-center gap-3">
             <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:40px;height:40px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
             <div>
-              <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
+              <div class="font-bold text-xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
             </div>
           </div>
@@ -362,17 +385,12 @@
 
   <!-- ============ TOP NAV ============ -->
   <!-- Hidden by default; JS shows it after successful auth + subscription check. -->
-  <nav class="hidden bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
+  <nav class="hidden backdrop-blur sticky top-0 z-40" style="background:#10151E;border-bottom:1px solid #2B3442;">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16 items-center">
         <button onclick="goto('home')" class="flex items-center gap-2 hover:opacity-80 transition">
-          <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-            <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;display:block;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
-          </div>
-          <div class="text-left">
-            <div class="font-bold text-slate-100 leading-none">AVIX</div>
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider">PPL Study Companion</div>
-          </div>
+          <svg viewBox="5.45 1.25 29.1 29.1" xmlns="http://www.w3.org/2000/svg" style="width:34px;height:34px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
+          <div class="font-bold text-2xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
         </button>
         <div class="flex items-center gap-2">
           <div class="hidden md:flex items-center gap-1 mr-2">
@@ -473,11 +491,11 @@
     <div class="relative glass rounded-2xl p-8 w-full max-w-md fade-in text-center">
       <!-- Logo / icon -->
       <div class="mx-auto mb-4 w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" class="w-7 h-7">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#9E7B9B" stroke-width="1.8" class="w-7 h-7">
           <path d="M22 16.92V19a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 11a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 0H6.09a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 14v2.92z"/>
         </svg>
       </div>
-      <div class="text-lg font-bold text-slate-100 mb-1">AVIX</div>
+      <div class="text-lg font-bold mb-1" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
       <h2 class="text-xl font-semibold text-white mb-2">Your free trial has ended</h2>
       <p class="text-sm text-slate-400 mb-6">
         You've used your 30-minute free trial. Upgrade to continue your training.
@@ -528,13 +546,15 @@
               <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
               Beta — built for student pilots
             </div>
-            <h1 class="text-4xl md:text-6xl font-bold leading-tight mb-4 text-slate-50">24/7 Aviation Tutoring and DPE simulation</h1>
-            <p class="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl">Ground school for the modern age powered by AI</p>
+            <p id="home-greeting" class="text-2xl md:text-3xl font-medium text-slate-200 mb-3"></p>
+            <h1 class="app-avix-mark">AVIX</h1>
+            <p class="app-avix-tag">Ground school for the modern age.</p>
+            <p class="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl">Your 24/7 aviation tutor and DPE simulator,<br>getting you ready for your check ride.</p>
             <div class="flex flex-wrap gap-3">
-              <button onclick="goto('chat')" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+              <button onclick="goto('chat')" class="px-6 py-3 font-semibold rounded-lg shadow-lg transition flex items-center gap-2" style="background:#9E7B9B;color:#10151E;">
                 <i data-lucide="message-circle" class="w-5 h-5"></i> Start a session.
               </button>
-              <button onclick="goto('test')" class="px-6 py-3 glass text-slate-100 hover:bg-slate-800/60 font-semibold rounded-lg transition flex items-center gap-2">
+              <button onclick="goto('test')" class="px-6 py-3 font-semibold rounded-lg transition flex items-center gap-2" style="background:#9E7B9B;color:#10151E;">
                 <i data-lucide="clipboard-check" class="w-5 h-5"></i> Take DPE Oral
               </button>
             </div>
@@ -562,17 +582,17 @@
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Last DPE Accuracy</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Last DPE Accuracy</div>
               <div id="stat-last" class="text-3xl font-bold text-slate-100">—</div>
               <div id="stat-last-sub" class="text-xs text-slate-500 mt-1">No oral taken yet</div>
             </div>
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Weekly Improvement</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Weekly Improvement</div>
               <div id="stat-improvement" class="text-3xl font-bold text-slate-100">—</div>
               <div id="stat-improvement-sub" class="text-xs text-slate-500 mt-1">Need 2+ orals in 7 days</div>
             </div>
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Highest Score</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Highest Score</div>
               <div id="stat-best" class="text-3xl font-bold text-blue-400">—</div>
               <div id="stat-best-sub" class="text-xs text-slate-500 mt-1">Across all sessions</div>
             </div>
@@ -582,26 +602,22 @@
 
       <!-- 3 feature cards -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div class="text-center mb-12">
-          <h2 class="text-3xl font-bold text-slate-100 mb-3">Three ways to study</h2>
-          <p class="text-slate-400 max-w-2xl mx-auto">Mix and match based on how you learn best. Chat through tricky topics, read structured guides, or run a realistic mock oral.</p>
-        </div>
 
         <div class="grid md:grid-cols-3 gap-6">
           <button onclick="goto('chat')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold text-slate-100 mb-2">CFI Chat</h3>
+            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">CFI Chat</h3>
             <p class="text-sm text-slate-400 mb-4">Ask anything, anytime. Adaptive explanations from beginner concepts to checkride-level scenarios.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Open chat <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
 
           <button onclick="goto('study')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold text-slate-100 mb-2">Resources</h3>
+            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">Resources</h3>
             <p class="text-sm text-slate-400 mb-4">Study guides, flash cards, and quizzes mapped to the twelve PPL knowledge areas — pick a format and a topic.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Browse resources <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
 
           <button onclick="goto('test')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold text-slate-100 mb-2">DPE Oral Exam</h3>
+            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">DPE Oral Exam</h3>
             <p class="text-sm text-slate-400 mb-4">Conversational examiner that asks scenario questions and probes with follow-ups, just like the real checkride.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Take oral <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
@@ -612,9 +628,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <div class="bg-zinc-950 rounded-2xl p-6 md:p-8 border border-zinc-900">
           <div class="mb-4">
-            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;display:block;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg> Aircraft Lookup
-            </h2>
+            <h2 class="text-lg font-bold" style="color:#9E7B9B;">Aircraft Lookup</h2>
             <p class="text-sm text-slate-400 mt-1">Look up any U.S.-registered aircraft by N-number — pulled live from the FAA registry.</p>
           </div>
 
@@ -852,12 +866,12 @@
   </main>
 
   <!-- ============ FOOTER ============ -->
-  <footer class="bg-black border-t border-zinc-900 text-slate-400 mt-12">
+  <footer class="text-slate-400 mt-12" style="background:#10151E;border-top:1px solid #2B3442;">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row justify-between gap-4 text-sm">
       <div>
-        <div class="flex items-center gap-2 mb-2">
-          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;display:block;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
-          <span class="font-bold text-slate-100">AVIX</span>
+        <div class="flex items-center gap-2 mb-2" style="line-height:1;">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
+          <span class="font-bold" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em;line-height:1;">AVIX</span>
           <span class="text-xs px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-slate-300 rounded">Beta</span>
         </div>
         <p class="text-xs">Educational tool for PPL students. Always verify with current FAA publications and your CFI.</p>
@@ -1220,6 +1234,8 @@
       const submitText = document.getElementById('auth-submit-text');
       const pwHint = document.getElementById('auth-pw-hint');
       const pwInput = document.getElementById('auth-password');
+      const nameField = document.getElementById('auth-name-field');
+      const nameInput = document.getElementById('auth-name');
       hideAuthMessage('error');
       hideAuthMessage('success');
       const activate = (tab) => {
@@ -1235,11 +1251,15 @@
         submitText.textContent = 'Log in';
         pwHint.classList.add('hidden');
         pwInput.setAttribute('autocomplete', 'current-password');
+        nameField.classList.add('hidden');
+        nameInput.removeAttribute('required');
       } else {
         activate(signupTab); deactivate(loginTab);
         submitText.textContent = 'Create account';
         pwHint.classList.remove('hidden');
         pwInput.setAttribute('autocomplete', 'new-password');
+        nameField.classList.remove('hidden');
+        nameInput.setAttribute('required', '');
       }
     }
 
@@ -1266,17 +1286,26 @@
       hideAuthMessage('success');
       const email = document.getElementById('auth-email').value.trim();
       const password = document.getElementById('auth-password').value;
+      const name = document.getElementById('auth-name').value.trim();
       if (!email || !password) {
         showAuthMessage('error', 'Email and password are required.');
         return;
       }
+      if (authMode === 'signup' && !name) {
+        showAuthMessage('error', 'First name is required.');
+        return;
+      }
       const endpoint = authMode === 'login' ? '/api/login' : '/api/signup';
+      // Login ignores `name`; signup forwards it to be stored in user_metadata.
+      const payload = authMode === 'login'
+        ? { email, password }
+        : { email, password, name };
       setAuthSubmitting(true);
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -2059,6 +2088,83 @@
       });
     }
 
+    // -------- Personalized rotating welcome message (home hero) --------
+    // Picks one message from the bucket matching the client's local time. When a
+    // first name is available we use the {name} templates; otherwise we fall
+    // back to the parallel name-less pool so we never render "undefined".
+    const HOME_GREETINGS = {
+      morning: {  // 5am–11am
+        named: [
+          'Good morning, {name}! Ready to hit the books?',
+          'Early bird gets the certificate, {name}.',
+          'Morning preflight check, {name} — let\'s get started.',
+        ],
+        plain: [
+          'Good morning! Ready to hit the books?',
+          'Early bird gets the certificate.',
+          'Morning preflight check — let\'s get started.',
+        ],
+      },
+      midday: {  // 11am–5pm
+        named: [
+          'Welcome back, {name}!',
+          'Good afternoon, {name}. Let\'s log some study time.',
+          'Back in the pattern, {name}.',
+        ],
+        plain: [
+          'Welcome back!',
+          'Good afternoon. Let\'s log some study time.',
+          'Back in the pattern.',
+        ],
+      },
+      evening: {  // 5pm–9pm
+        named: [
+          'Evening session, {name}? Let\'s make it count.',
+          'Welcome back, {name} — good luck today.',
+          'Time to hit the books, {name}.',
+        ],
+        plain: [
+          'Evening session? Let\'s make it count.',
+          'Welcome back — good luck today.',
+          'Time to hit the books.',
+        ],
+      },
+      night: {  // 9pm–5am
+        named: [
+          'Late night study sesh, {name}?',
+          'Burning the midnight oil, {name}.',
+          'Night owl mode, {name} — the checkride waits for no one.',
+        ],
+        plain: [
+          'Late night study sesh?',
+          'Burning the midnight oil.',
+          'Night owl mode — the checkride waits for no one.',
+        ],
+      },
+    };
+
+    function homeGreetingBucket(hour) {
+      if (hour >= 5 && hour < 11) return 'morning';
+      if (hour >= 11 && hour < 17) return 'midday';
+      if (hour >= 17 && hour < 21) return 'evening';
+      return 'night';  // 9pm–5am
+    }
+
+    function renderHomeGreeting() {
+      const el = document.getElementById('home-greeting');
+      if (!el) return;
+      // First name = first whitespace-delimited token of the stored full name.
+      const firstName = (window.currentUser?.name || '').trim().split(/\s+/)[0];
+      const bucket = HOME_GREETINGS[homeGreetingBucket(new Date().getHours())];
+      const pool = firstName ? bucket.named : bucket.plain;
+      const msg = pool[Math.floor(Math.random() * pool.length)];
+      el.textContent = firstName ? msg.replace('{name}', firstName) : msg;
+      // Replay the existing fade-in animation on each render.
+      el.classList.remove('fade-in');
+      void el.offsetWidth;
+      el.classList.add('fade-in');
+    }
+
     function goto(view) {
       // Logged-out visitors: any feature click goes to create-account/login.
       if (window.isGuest && view !== 'home') {
@@ -2086,6 +2192,7 @@
         renderQuickChips();
       }
       if (view === 'study') renderResourceGrid();
+      if (view === 'home') renderHomeGreeting();
     }
 
     // ============================================================
