@@ -53,6 +53,11 @@ import retrieval
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
+# Current Terms of Service / Privacy Policy version. Bump this string whenever
+# you publish materially updated terms; it is recorded with each user's consent
+# so you can tell which version they agreed to.
+TOS_VERSION = "2026-06-13"
+
 # Build the client only if we have a key. Otherwise leave it None and let the
 # endpoint return a friendly error.
 client = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
@@ -455,10 +460,16 @@ def signup():
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     name = (data.get("name") or "").strip()
+    agreed = data.get("agreed") is True
     if not email or not password:
         return jsonify(error="Email and password are required."), 400
     if len(password) < 8:
         return jsonify(error="Password must be at least 8 characters."), 400
+    # Server-side enforcement of the Terms/Privacy agreement — the signup
+    # cannot proceed without explicit consent, even if the client checkbox is
+    # bypassed.
+    if not agreed:
+        return jsonify(error="You must agree to the Terms of Service and Privacy Policy."), 400
 
     try:
         # Stash the display name in Supabase auth user_metadata — no new table
@@ -493,6 +504,21 @@ def signup():
         except Exception:  # noqa: BLE001
             # Non-fatal — the trial check will backfill on first use.
             log.exception("Failed to create trial row for new user %s", result.user.id)
+
+        # Record the Terms/Privacy consent (who, when, which version). Written
+        # with the service-role key; RLS prevents the user from altering it.
+        try:
+            supabase_admin.table("tos_consent").upsert(
+                {
+                    "user_id": str(result.user.id),
+                    "accepted_at": datetime.now(timezone.utc).isoformat(),
+                    "tos_version": TOS_VERSION,
+                },
+                on_conflict="user_id",
+            ).execute()
+            log.info("Recorded ToS consent (v%s) for user %s", TOS_VERSION, result.user.id)
+        except Exception:  # noqa: BLE001
+            log.exception("Failed to record ToS consent for user %s", result.user.id)
 
     if result.session is None:
         # Email confirmation is on; user must click the link before login.

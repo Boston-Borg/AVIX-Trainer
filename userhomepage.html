@@ -1311,10 +1311,11 @@
         return;
       }
       const endpoint = authMode === 'login' ? '/api/login' : '/api/signup';
-      // Login ignores `name`; signup forwards it to be stored in user_metadata.
+      // Login ignores `name`; signup forwards it (stored in user_metadata) and
+      // the Terms/Privacy agreement flag (recorded server-side as consent).
       const payload = authMode === 'login'
         ? { email, password }
-        : { email, password, name };
+        : { email, password, name, agreed: document.getElementById('auth-agree').checked };
       setAuthSubmitting(true);
       try {
         const res = await fetch(endpoint, {
