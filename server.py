@@ -98,10 +98,10 @@ STRIPE_PRICE_ID       = os.environ.get("STRIPE_PRICE_ID")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
 STRIPE_SUCCESS_URL = os.environ.get(
     "STRIPE_SUCCESS_URL",
-    "http://localhost:8000/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+    "http://localhost:8000/app?checkout=success&session_id={CHECKOUT_SESSION_ID}",
 )
 STRIPE_CANCEL_URL = os.environ.get(
-    "STRIPE_CANCEL_URL", "http://localhost:8000/?checkout=cancel"
+    "STRIPE_CANCEL_URL", "http://localhost:8000/app?checkout=cancel"
 )
 
 if STRIPE_SECRET_KEY:
@@ -250,7 +250,8 @@ def _check_trial_usage(user_id, feature: str) -> bool:
 
 # --- Flask app --------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent
-HTML_FILE = "AVX1.2.html"  # the page you already have
+HTML_FILE = "userhomepage.html"        # the logged-in app (served at /app)
+GUEST_HTML_FILE = "guesthomepage.html"  # the marketing landing page (served at /)
 
 app = Flask(__name__, static_folder=str(PROJECT_ROOT), static_url_path="")
 
@@ -299,7 +300,15 @@ def enforce_https():
 # --- Routes -----------------------------------------------------------------
 @app.route("/")
 def index():
-    """Serve the AVX HTML page."""
+    """Serve the guest landing page. Logged-in visitors are forwarded to /app
+    by a small client-side check in guesthomepage.html (auth is a JWT in the
+    browser, so the server can't tell login state at page-load time)."""
+    return send_from_directory(PROJECT_ROOT, GUEST_HTML_FILE)
+
+
+@app.route("/app")
+def app_home():
+    """Serve the logged-in app. Shows the login screen if no valid session."""
     return send_from_directory(PROJECT_ROOT, HTML_FILE)
 
 

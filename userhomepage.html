@@ -1191,9 +1191,9 @@
     //   - no sub but trial has any feature available → app + trial banner
     //   - no sub and trial exhausted → paywall
     function routeToScreen(me) {
-      // Logged out: show the home page in browse-only mode. Creating an
-      // account is required to open any feature.
-      if (!me) { showGuestHome(); return null; }
+      // Logged out at /app: show the login / signup screen. The public
+      // marketing homepage now lives at "/" (guesthomepage.html).
+      if (!me) { showAuthScreen(); return null; }
       if (me.subscription?.active) {
         showAppShell(me.user, me.subscription, null);
       } else {
@@ -1309,8 +1309,8 @@
       catch { /* server-side failure is harmless; we discard the token regardless */ }
       clearAuthToken();
       window.currentUser = null;
-      // After signing out, land on the browse-only home page.
-      showGuestHome();
+      // After signing out, return to the public guest homepage at "/".
+      window.location.href = '/';
     }
 
     // Open/close helpers for the account dropdown menu.
