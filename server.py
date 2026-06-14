@@ -312,6 +312,18 @@ def app_home():
     return send_from_directory(PROJECT_ROOT, HTML_FILE)
 
 
+@app.route("/terms")
+def terms_page():
+    """Serve the Terms of Service page."""
+    return send_from_directory(PROJECT_ROOT, "terms.html")
+
+
+@app.route("/privacy")
+def privacy_page():
+    """Serve the Privacy Policy page."""
+    return send_from_directory(PROJECT_ROOT, "privacy.html")
+
+
 def _check_database_tables() -> dict:
     """Check that all required Supabase tables exist.
 
