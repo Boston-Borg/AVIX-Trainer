@@ -3699,10 +3699,44 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       handleAnswer(document.getElementById('dpe-input').value.trim());
     });
 
-    function dpeSkip() {
+    async function dpeSkip() {
       const t = state.test;
-      if (!t || t.finished) return;
-      handleAnswer('I don\'t know — please move on.');
+      if (!t || t.finished || t.awaitingDuration) return;
+
+      // Explicit skip: do NOT route through the examiner's intent classifier
+      // (it would read "move on" as a topic request / meta and never grade or
+      // advance). Mark the question on the table WRONG and jump to a fresh
+      // question on a different topic via advanceMain().
+      const skipText = "I don't know — move on.";
+      addMsg('dpe-messages', 'user', escapeHtml(skipText));
+      t.history.push({ role: 'user', content: skipText });
+
+      const cfg = t.cfg;
+      const q = t.questions[t.index];
+      const isFollowup = t.followupIdx >= 0 && !!t.currentFollowup;
+      const gradeable = isFollowup ? t.currentFollowup : q;
+
+      // Brief red closeout showing the reference so the gap is still taught.
+      const refLine = gradeable.ideal
+        ? `<br><br><em class="text-slate-400 not-italic">Reference:</em> ${gradeable.ideal}`
+        : '';
+      addMsg('dpe-messages', 'bot-wrong', `<strong>No problem — let's move on.</strong>${refLine}`);
+
+      // Record this turn as wrong so scoring and weak-topic detection see it.
+      t.results.push({
+        type: isFollowup ? 'followup' : 'main',
+        topic: (isFollowup && t.currentFollowup && t.currentFollowup.topic) || q.topic,
+        q: gradeable.q,
+        userAnswer: skipText,
+        grade: 'wrong',
+        ideal: gradeable.ideal || '',
+      });
+      t.currentTopicTurns = t.currentTopicTurns || [];
+      t.currentTopicTurns.push({ q: gradeable.q, a: skipText });
+
+      // Always advance to a new main question (a separate topic), even if we
+      // were mid follow-up on the current topic.
+      await advanceMain();
     }
 
     async function handleAnswer(text) {
