@@ -6,17 +6,6 @@
   <title>AVIX — Your 24/7 PPL Study Companion</title>
   <meta name="description" content="AI-powered Private Pilot License coaching: CFI chat, study guides, and a conversational DPE oral exam simulator." />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    /* Re-map Tailwind's "blue" accent palette to the AVIX plum (#9E7B9B) so
-       every blue-* utility class across the app renders in purple — buttons,
-       links, icons, rings, indicators, and all their opacity variants. */
-    tailwind.config = {
-      theme: { extend: { colors: { blue: {
-        50:'#f4eff3', 100:'#e8dfe7', 200:'#d4c4d2', 300:'#c2a6bf', 400:'#b08dad',
-        500:'#9E7B9B', 600:'#856585', 700:'#6c526c', 800:'#523e52', 900:'#382a38', 950:'#241b24'
-      } } } }
-    };
-  </script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body {
@@ -56,7 +45,7 @@
       border: 1px solid rgba(239, 68, 68, 0.55);
     }
     .chat-msg-user {
-      background: #856585;
+      background: #2563eb;
       color: white;
       border-radius: 14px 14px 2px 14px;
     }
@@ -73,7 +62,7 @@
     @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
     .fade-in { animation: fadeIn 0.3s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .nav-active { color: #b08dad !important; border-bottom-color: #b08dad !important; }
+    .nav-active { color: #60a5fa !important; border-bottom-color: #60a5fa !important; }
     .scroll-thin::-webkit-scrollbar { width: 6px; }
     .scroll-thin::-webkit-scrollbar-track { background: #0f172a; }
     .scroll-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -87,8 +76,8 @@
       border-color: #334155;
     }
     input[type=text]:focus, textarea:focus {
-      border-color: #9E7B9B;
-      box-shadow: 0 0 0 3px rgba(158, 123, 155, 0.22);
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
       outline: none;
     }
     /* Prose tweaks for dark study cards */
@@ -167,12 +156,6 @@
     .gradient-hero{ background:transparent !important; border-bottom:1px solid #2B3442; }
     .glass{ background:rgba(27,35,48,.6) !important; border:1px solid #2B3442 !important; backdrop-filter:blur(4px); }
     .runway-stripes{ background-image:repeating-linear-gradient(90deg,transparent 0 10px,rgba(194,163,107,.55) 10px 22px) !important; }
-    /* big brass AVIX hero wordmark — mirrors the guest homepage */
-    .app-avix-mark{ font-family:'Playfair Display',serif; font-weight:500;
-      font-size:clamp(4rem,11vw,8rem); line-height:.92; letter-spacing:.04em;
-      color:#C2A36B; margin:0 0 .3rem; }
-    .app-avix-tag{ font-family:'Playfair Display',serif; font-style:italic;
-      font-size:clamp(1.1rem,2.4vw,1.55rem); color:#A79F8B; margin:0 0 1.4rem; }
     .chat-msg-bot{ background:#121823 !important; border-color:#2B3442 !important; border-radius:2px !important; }
     .chat-msg-user{ background:rgba(194,163,107,.16) !important; border:1px solid rgba(194,163,107,.4) !important; color:#E7DFCC !important; border-radius:2px !important; }
     .chat-msg-system{ border-radius:2px !important; }
@@ -260,9 +243,11 @@
       <div class="glass rounded-2xl p-8 fade-in">
         <!-- Logo header -->
         <div class="flex items-center justify-center gap-3 mb-6">
-          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:40px;height:40px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
+          <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+          </div>
           <div>
-            <div class="font-bold text-xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
+            <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
             <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
           </div>
         </div>
@@ -281,12 +266,6 @@
 
         <!-- The form (one form, the submit handler decides login vs signup) -->
         <form id="auth-form" class="space-y-4">
-          <!-- First name — signup only; shown/hidden by switchAuthTab(). -->
-          <div id="auth-name-field" class="hidden">
-            <label for="auth-name" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">First name</label>
-            <input id="auth-name" name="name" type="text" autocomplete="given-name"
-                   class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-          </div>
           <div>
             <label for="auth-email" class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email</label>
             <input id="auth-email" name="email" type="email" required autocomplete="email"
@@ -298,11 +277,6 @@
                    class="w-full px-3 py-2 rounded-lg bg-zinc-950 text-slate-100 border border-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
             <div id="auth-pw-hint" class="text-xs text-slate-500 mt-1 hidden">At least 8 characters.</div>
           </div>
-          <!-- Terms/Privacy agreement — signup only; shown/hidden by switchAuthTab(). -->
-          <label id="auth-agree-field" class="hidden items-start gap-2 text-xs text-slate-400 cursor-pointer">
-            <input id="auth-agree" type="checkbox" class="mt-0.5 w-4 h-4 accent-blue-500 flex-shrink-0">
-            <span>I agree to the <a href="/terms" target="_blank" class="text-blue-400 hover:text-blue-300 underline">Terms of Service</a> and <a href="/privacy" target="_blank" class="text-blue-400 hover:text-blue-300 underline">Privacy Policy</a>.</span>
-          </label>
           <button type="submit" id="auth-submit"
                   class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2">
             <span id="auth-submit-text">Log in</span>
@@ -329,9 +303,11 @@
         <!-- Header with logo + sign out -->
         <div class="flex items-start justify-between mb-6">
           <div class="flex items-center gap-3">
-            <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:40px;height:40px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
+            <div class="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <i data-lucide="plane" class="w-6 h-6 text-blue-400"></i>
+            </div>
             <div>
-              <div class="font-bold text-xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
+              <div class="font-bold text-xl text-slate-100 leading-none">AVX</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">PPL Study Companion</div>
             </div>
           </div>
@@ -355,19 +331,19 @@
         <ul class="space-y-3 mb-8 text-sm">
           <li class="flex gap-3 items-start text-slate-300">
             <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
-            <span><strong class="text-slate-100">CFI Chat</strong>: ask anything and get answers grounded in FAA sources with inline citations.</span>
+            <span><strong class="text-slate-100">CFI Chat</strong> — ask anything, get answers grounded in FAA sources with inline citations.</span>
           </li>
           <li class="flex gap-3 items-start text-slate-300">
             <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
-            <span><strong class="text-slate-100">Study guides, flashcards &amp; quizzes</strong> generated on demand for any PPL topic.</span>
+            <span><strong class="text-slate-100">Study guides, flashcards &amp; quizzes</strong> — generated on demand for any PPL topic.</span>
           </li>
           <li class="flex gap-3 items-start text-slate-300">
             <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
-            <span><strong class="text-slate-100">DPE oral exam simulator</strong> with three difficulty modes, from beginner to checkride.</span>
+            <span><strong class="text-slate-100">DPE oral exam simulator</strong> — three difficulty modes from beginner to checkride.</span>
           </li>
           <li class="flex gap-3 items-start text-slate-300">
             <i data-lucide="check" class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
-            <span><strong class="text-slate-100">Progress saved across devices</strong> so you can pick up where you left off, anywhere.</span>
+            <span><strong class="text-slate-100">Progress saved across devices</strong> — pick up where you left off, anywhere.</span>
           </li>
         </ul>
 
@@ -390,12 +366,17 @@
 
   <!-- ============ TOP NAV ============ -->
   <!-- Hidden by default; JS shows it after successful auth + subscription check. -->
-  <nav class="hidden backdrop-blur sticky top-0 z-40" style="background:#10151E;border-bottom:1px solid #2B3442;">
+  <nav class="hidden bg-black/90 backdrop-blur border-b border-zinc-900 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16 items-center">
         <button onclick="goto('home')" class="flex items-center gap-2 hover:opacity-80 transition">
-          <svg viewBox="5.45 1.25 29.1 29.1" xmlns="http://www.w3.org/2000/svg" style="width:34px;height:34px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
-          <div class="font-bold text-2xl leading-none" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
+          <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <i data-lucide="plane" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <div class="text-left">
+            <div class="font-bold text-slate-100 leading-none">AVIX</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">PPL Study Companion</div>
+          </div>
         </button>
         <div class="flex items-center gap-2">
           <div class="hidden md:flex items-center gap-1 mr-2">
@@ -404,15 +385,6 @@
             <button onclick="goto('study')" data-nav="study" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">Resources</button>
             <button onclick="goto('test')" data-nav="test" class="nav-link px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition">DPE Oral</button>
           </div>
-          <!-- Trial countdown badge — only visible for free-trial users -->
-          <div id="trial-countdown-badge" class="hidden items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition"
-               style="background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.35);color:#fcd34d;">
-            <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v4l2.5 1.5"/>
-            </svg>
-            <span id="trial-countdown-text">Trial: 30:00</span>
-          </div>
-
           <div class="relative">
             <button id="profile-btn" aria-label="Profile" aria-haspopup="true" aria-expanded="false" class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/60 flex items-center justify-center transition">
               <i data-lucide="user" class="w-4 h-4 text-blue-400"></i>
@@ -455,8 +427,9 @@
       <div class="flex items-center gap-2">
         <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
         <span>
-          <strong class="text-amber-100">Free trial</strong> —
-          <span id="trial-chat-remaining">30:00 remaining</span>
+          <strong class="text-amber-100">Free plan</strong> —
+          <span id="trial-chat-remaining"  >30 min of CFI Chat</span>,
+          <span id="trial-oral-remaining"  >one 30-min DPE oral session</span>
         </span>
       </div>
       <button id="trial-subscribe-btn" type="button"
@@ -488,52 +461,6 @@
     </div>
   </div>
 
-  <!-- ============ TRIAL EXPIRED MODAL (non-dismissible paywall overlay) ============ -->
-  <!-- z-60 sits above the upgrade-modal (z-50) and everything else. No click-outside,
-       no X button, no Escape handler — it can only be cleared by subscribing. -->
-  <div id="trial-expired-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center px-4">
-    <div class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
-    <div class="relative glass rounded-2xl p-8 w-full max-w-md fade-in text-center">
-      <div class="text-lg font-bold mb-1" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em">AVIX</div>
-      <h2 class="text-xl font-semibold text-white mb-2">Your free trial has ended</h2>
-      <p class="text-sm text-slate-400 mb-6">
-        You've used your 30-minute free trial. Upgrade to continue your training.
-      </p>
-      <button id="trial-expired-subscribe-btn" type="button"
-              class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
-        <span id="trial-expired-subscribe-text">Upgrade Now</span>
-        <span id="trial-expired-subscribe-spinner" class="hidden">
-          <svg class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-linecap="round" opacity=".3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
-        </span>
-      </button>
-      <p class="mt-3 text-xs text-slate-500">Already upgraded? <button onclick="location.reload()" class="underline hover:text-slate-300 transition">Refresh the page.</button></p>
-    </div>
-  </div>
-
-  <!-- ============ TRIAL WARNING TOAST ============ -->
-  <div id="trial-warning-toast" class="hidden fixed bottom-5 right-5 z-[55] w-80 max-w-[calc(100vw-2.5rem)]">
-    <div class="glass rounded-xl p-4 border border-amber-500/40 shadow-xl fade-in">
-      <div class="flex items-start gap-3">
-        <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
-          <svg viewBox="0 0 16 16" fill="none" stroke="#fbbf24" stroke-width="1.8" class="w-4 h-4">
-            <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v4l2.5 1.5"/>
-          </svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="text-sm font-semibold text-amber-200">Trial ends soon</div>
-          <div class="text-xs text-slate-400 mt-0.5">Your free trial ends in 5 minutes. Upgrade to keep access.</div>
-          <button onclick="handleSubscribeClick()" class="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition">
-            Upgrade now →
-          </button>
-        </div>
-        <button onclick="document.getElementById('trial-warning-toast').classList.add('hidden')"
-                class="flex-shrink-0 text-slate-600 hover:text-slate-400 transition" aria-label="Dismiss">
-          <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4"><path d="M4 4l8 8m0-8L4 12" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-        </button>
-      </div>
-    </div>
-  </div>
-
   <main class="hidden flex-1">
 
     <!-- ============ HOME ============ -->
@@ -545,15 +472,13 @@
               <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
               Beta — built for student pilots
             </div>
-            <p id="home-greeting" class="text-2xl md:text-3xl font-medium text-slate-200 mb-3"></p>
-            <h1 class="app-avix-mark">AVIX</h1>
-            <p class="app-avix-tag">Ground school for the modern age.</p>
-            <p class="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl">Your 24/7 aviation tutor and DPE simulator,<br>getting you ready for your check ride.</p>
+            <h1 class="text-4xl md:text-6xl font-bold leading-tight mb-4 text-slate-50">24/7 Aviation Tutoring and DPE simulation</h1>
+            <p class="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl">Ground school for the modern age powered by AI</p>
             <div class="flex flex-wrap gap-3">
-              <button onclick="goto('chat')" class="px-6 py-3 font-semibold rounded-lg shadow-lg transition flex items-center gap-2" style="background:#9E7B9B;color:#10151E;">
+              <button onclick="goto('chat')" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
                 <i data-lucide="message-circle" class="w-5 h-5"></i> Start a session.
               </button>
-              <button onclick="goto('test')" class="px-6 py-3 font-semibold rounded-lg transition flex items-center gap-2" style="background:#9E7B9B;color:#10151E;">
+              <button onclick="goto('test')" class="px-6 py-3 glass text-slate-100 hover:bg-slate-800/60 font-semibold rounded-lg transition flex items-center gap-2">
                 <i data-lucide="clipboard-check" class="w-5 h-5"></i> Take DPE Oral
               </button>
             </div>
@@ -581,17 +506,17 @@
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Last DPE Accuracy</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Last DPE Accuracy</div>
               <div id="stat-last" class="text-3xl font-bold text-slate-100">—</div>
               <div id="stat-last-sub" class="text-xs text-slate-500 mt-1">No oral taken yet</div>
             </div>
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Weekly Improvement</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Weekly Improvement</div>
               <div id="stat-improvement" class="text-3xl font-bold text-slate-100">—</div>
               <div id="stat-improvement-sub" class="text-xs text-slate-500 mt-1">Need 2+ orals in 7 days</div>
             </div>
             <div class="text-center md:text-left">
-              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif !important">Highest Score</div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Highest Score</div>
               <div id="stat-best" class="text-3xl font-bold text-blue-400">—</div>
               <div id="stat-best-sub" class="text-xs text-slate-500 mt-1">Across all sessions</div>
             </div>
@@ -601,55 +526,38 @@
 
       <!-- 3 feature cards -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-slate-100 mb-3">Three ways to study</h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">Mix and match based on how you learn best — chat through tricky topics, read structured guides, or sit a realistic mock oral.</p>
+        </div>
 
         <div class="grid md:grid-cols-3 gap-6">
           <button onclick="goto('chat')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">CFI Chat</h3>
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="message-circle" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">CFI Chat</h3>
             <p class="text-sm text-slate-400 mb-4">Ask anything, anytime. Adaptive explanations from beginner concepts to checkride-level scenarios.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Open chat <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
 
           <button onclick="goto('study')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">Resources</h3>
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="library" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">Resources</h3>
             <p class="text-sm text-slate-400 mb-4">Study guides, flash cards, and quizzes mapped to the twelve PPL knowledge areas — pick a format and a topic.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Browse resources <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
 
           <button onclick="goto('test')" class="text-left bg-zinc-950 rounded-2xl p-6 border border-zinc-900 hover:border-blue-500/60 hover:shadow-xl hover:shadow-blue-500/10 transition group">
-            <h3 class="text-xl font-bold mb-2" style="color:#9E7B9B;">DPE Oral Exam</h3>
+            <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 group-hover:border-blue-500/40 transition">
+              <i data-lucide="clipboard-check" class="w-6 h-6 text-blue-400 transition"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-100 mb-2">DPE Oral Exam</h3>
             <p class="text-sm text-slate-400 mb-4">Conversational examiner that asks scenario questions and probes with follow-ups, just like the real checkride.</p>
             <span class="text-sm font-semibold text-blue-400 inline-flex items-center gap-1">Take oral <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
           </button>
-        </div>
-      </div>
-
-      <!-- Aircraft Lookup (FAA registry) -->
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        <div class="bg-zinc-950 rounded-2xl p-6 md:p-8 border border-zinc-900">
-          <div class="mb-4">
-            <h2 class="text-lg font-bold" style="color:#9E7B9B;">Aircraft Lookup</h2>
-            <p class="text-sm text-slate-400 mt-1">Look up any U.S.-registered aircraft by N-number — pulled live from the FAA registry.</p>
-          </div>
-
-          <form id="aircraft-lookup-form" class="flex flex-col sm:flex-row gap-2 mb-4">
-            <input id="aircraft-n-input" type="text" maxlength="7" placeholder="Enter an N-number, e.g. N172SP"
-                   class="flex-1 px-4 py-3 rounded-lg border outline-none text-sm" autocomplete="off" />
-            <button type="submit" id="aircraft-lookup-btn"
-                    class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2">
-              <span id="aircraft-lookup-btn-label" class="inline-flex items-center gap-2"><i data-lucide="search" class="w-4 h-4"></i> Look Up</span>
-            </button>
-          </form>
-
-          <div id="aircraft-lookup-error" class="hidden text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2 mb-4"></div>
-          <div id="aircraft-result" class="hidden mb-6"></div>
-
-          <div>
-            <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">My Saved Aircraft</div>
-            <p class="text-xs text-slate-500 mb-2">The CFI and DPE examiner tailor explanations and scenario questions to your <span class="text-blue-400 font-semibold">training aircraft</span>.</p>
-            <div id="saved-aircraft-list" class="space-y-2">
-              <div class="text-sm text-slate-500">Log in and save a lookup to build your hangar.</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -695,9 +603,6 @@
               </div>
               <div id="quick-chips" class="flex flex-wrap gap-2"></div>
             </div>
-
-            <!-- Aircraft selector (optional) — tailors the CFI to a saved plane -->
-            <div class="aircraft-selector-slot flex flex-wrap items-center gap-2 mb-3"></div>
 
             <!-- Chat container -->
             <div class="bg-zinc-950 rounded-2xl border border-zinc-900 overflow-hidden flex flex-col flex-1">
@@ -763,9 +668,6 @@
             </h1>
             <p class="text-slate-400">Pick your difficulty. Higher tiers ask harder scenario questions <em class="text-slate-200 not-italic">and</em> probe with deeper follow-ups.</p>
           </div>
-
-          <!-- Aircraft selector (optional) — tailors the oral to a saved plane -->
-          <div class="aircraft-selector-slot flex flex-wrap items-center gap-2 mb-6"></div>
 
           <div class="grid md:grid-cols-3 gap-4">
             <button onclick="startTest('beginner')" class="text-left bg-zinc-950 rounded-2xl p-6 border-2 border-zinc-900 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 transition">
@@ -865,12 +767,12 @@
   </main>
 
   <!-- ============ FOOTER ============ -->
-  <footer class="text-slate-400 mt-12" style="background:#10151E;border-top:1px solid #2B3442;">
+  <footer class="bg-black border-t border-zinc-900 text-slate-400 mt-12">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row justify-between gap-4 text-sm">
       <div>
-        <div class="flex items-center gap-2 mb-2" style="line-height:1;">
-          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;display:block;flex-shrink:0;"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg>
-          <span class="font-bold" style="color:#C2A36B;font-family:'Playfair Display',serif;letter-spacing:.08em;line-height:1;">AVIX</span>
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="plane" class="w-4 h-4 text-blue-400"></i>
+          <span class="font-bold text-slate-100">AVIX</span>
           <span class="text-xs px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-slate-300 rounded">Beta</span>
         </div>
         <p class="text-xs">Educational tool for PPL students. Always verify with current FAA publications and your CFI.</p>
@@ -878,7 +780,6 @@
       <div class="text-xs">
         <div>© 2026 AVIX</div>
         <div class="text-slate-500 mt-1">Not a substitute for FAA-required ground or flight training.</div>
-        <div class="mt-1"><a href="/terms" class="text-blue-400 hover:text-blue-300">Terms of Service</a> · <a href="/privacy" class="text-blue-400 hover:text-blue-300">Privacy Policy</a></div>
       </div>
     </div>
   </footer>
@@ -915,26 +816,26 @@
         throw new Error('Your session expired. Please log in again.');
       }
       if (res.status === 402) {
-        // Trial expired or no active subscription. Show the non-dismissible
-        // expiry modal immediately so the user can't keep interacting. The
-        // caller still gets a thrown error for any local error UI it wants.
+        // Trial used up for this feature OR no active subscription.
+        // We still return the response so the caller can show its local error,
+        // but we also fire-and-forget refresh /api/me so the banner/paywall
+        // catches up shortly. (The caller usually shows an inline error and
+        // the user can click Subscribe from the banner.)
         try {
           const data = await res.clone().json();
-          showTrialExpiredModal();
-          stopTrialPolling();
-          const err = new Error(data.error || 'Your free trial has ended.');
+          // Re-render the screen after a moment so the global state matches.
+          setTimeout(async () => {
+            const me = await fetchMe();
+            routeToScreen(me);
+          }, 50);
+          const err = new Error(data.error || 'Subscription required.');
           err.status = 402;
           err.feature = data.feature;
           err.trial = data.trial;
           throw err;
         } catch (e) {
           if (e?.status === 402) throw e;
-          // JSON parse failed — still show modal.
-          showTrialExpiredModal();
-          stopTrialPolling();
-          const err = new Error('Your free trial has ended.');
-          err.status = 402;
-          throw err;
+          // Otherwise fall through and return res for caller to handle.
         }
       }
       return res;
@@ -949,6 +850,7 @@
       document.getElementById('trial-banner').classList.add('hidden');
       document.querySelector('nav').classList.add('hidden');
       document.querySelector('main').classList.add('hidden');
+      stopTrialBannerTicker();
     }
     function showAuthScreen() {
       _hideAllScreens();
@@ -1004,185 +906,94 @@
       loadUserState().catch(e => console.warn('loadUserState:', e));
       const profileBtn = document.getElementById('profile-btn');
       if (profileBtn) profileBtn.title = `Signed in as ${user.email} — click for menu`;
-
-      // Trial banner + countdown badge.
-      stopTrialPolling();  // cancel any previous poll loop
+      // Trial banner: only visible if user is on a trial (no active sub but
+      // still has at least one feature available). Owners get null trial.
       if (trial && !subscription?.active) {
-        if (trial.trial_expired) {
-          // Trial already expired when the page loaded — block immediately.
-          showTrialExpiredModal();
-        } else {
-          // Show banner + start live countdown.
-          document.getElementById('trial-banner').classList.remove('hidden');
-          updateTrialBannerCounters(trial);
-          startTrialPolling(trial.seconds_remaining);
-        }
+        document.getElementById('trial-banner').classList.remove('hidden');
+        updateTrialBannerCounters(trial);
       }
     }
 
-    // Format MM:SS from seconds.
-    function fmtTrialTime(s) {
-      if (!s || s <= 0) return '0:00';
+    // Format the per-feature counters inside the trial banner from /api/me data.
+    // `trial.chat.seconds_remaining` / `trial.oral.seconds_remaining` are a
+    // SNAPSHOT as of the last /api/me call. To make the banner actually count
+    // down in real time (instead of showing a frozen snapshot until the next
+    // fetch), we cache the snapshot + the time it was taken and tick it down
+    // client-side every second via trialBannerTicker().
+    let trialBannerInterval = null;
+    function fmtSeconds(s) {
+      if (s <= 0) return 'expired';
       const m = Math.floor(s / 60);
-      const sec = Math.floor(s % 60);
-      return `${m}:${String(sec).padStart(2, '0')}`;
+      const sec = s % 60;
+      return `${m}:${String(sec).padStart(2, '0')} remaining`;
     }
-
-    // Update the countdown badge in the nav.
-    function updateTrialCountdownBadge(secondsRemaining) {
-      const badge = document.getElementById('trial-countdown-badge');
-      const text  = document.getElementById('trial-countdown-text');
-      if (!badge || !text) return;
-      if (secondsRemaining == null || secondsRemaining <= 0) {
-        badge.classList.add('hidden');
-        badge.classList.remove('flex');
-        return;
-      }
-      text.textContent = `Trial: ${fmtTrialTime(secondsRemaining)}`;
-      badge.classList.remove('hidden');
-      badge.classList.add('flex');
-      // Amber warning color when ≤ 5 min remain.
-      if (secondsRemaining <= 300) {
-        badge.style.background = 'rgba(239,68,68,0.12)';
-        badge.style.borderColor = 'rgba(239,68,68,0.4)';
-        badge.style.color = '#fca5a5';
-      } else {
-        badge.style.background = 'rgba(245,158,11,0.1)';
-        badge.style.borderColor = 'rgba(245,158,11,0.35)';
-        badge.style.color = '#fcd34d';
-      }
-    }
-
-    // Show the non-dismissible trial-expired modal.
-    function showTrialExpiredModal() {
-      // Hide countdown badge — no point showing it.
-      const badge = document.getElementById('trial-countdown-badge');
-      if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
-      // Hide any trial banner.
-      document.getElementById('trial-banner')?.classList.add('hidden');
-      // Show the modal.
-      const modal = document.getElementById('trial-expired-modal');
-      if (modal) modal.classList.remove('hidden');
-    }
-
-    // Wire the Upgrade Now button inside the expiry modal.
-    function initTrialExpiredModal() {
-      document.getElementById('trial-expired-subscribe-btn')
-        ?.addEventListener('click', async () => {
-          const btn  = document.getElementById('trial-expired-subscribe-btn');
-          const spin = document.getElementById('trial-expired-subscribe-spinner');
-          const txt  = document.getElementById('trial-expired-subscribe-text');
-          if (btn) btn.disabled = true;
-          if (spin) spin.classList.remove('hidden');
-          if (txt)  txt.textContent = 'Redirecting…';
-          try {
-            await handleSubscribeClick();
-          } catch {
-            // handleSubscribeClick already surfaces errors via showPaywallMessage;
-            // re-enable in case we're still on this page.
-            if (btn) btn.disabled = false;
-            if (spin) spin.classList.add('hidden');
-            if (txt)  txt.textContent = 'Upgrade Now';
-          }
-        });
-    }
-
-    // Show the 5-minute warning toast (once per session via localStorage flag).
-    function maybeShowTrialWarningToast() {
-      if (localStorage.getItem('avix_trial_warning_shown')) return;
-      localStorage.setItem('avix_trial_warning_shown', '1');
-      const toast = document.getElementById('trial-warning-toast');
-      if (toast) toast.classList.remove('hidden');
-      // Auto-dismiss after 12 seconds.
-      setTimeout(() => toast?.classList.add('hidden'), 12000);
-    }
-
-    // ---- Update the trial banner text from the unified trial object ----
-    // trial is { trial_active, is_paid, seconds_remaining, trial_expired }
     function updateTrialBannerCounters(trial) {
+      // Snapshot the live-countdown fields so the ticker has a starting point.
+      window._trialSnapshot = {
+        takenAt: Date.now(),
+        chat: (trial.chat?.used && !trial.chat?.expired) ? trial.chat.seconds_remaining : null,
+        oral: (trial.oral?.used && !trial.oral?.expired) ? trial.oral.seconds_remaining : null,
+      };
+      renderTrialBanner(trial);
+      startTrialBannerTicker();
+    }
+    // Renders the banner text. `overrides` (optional) supplies live
+    // chat/oral seconds-remaining values from the ticker; falls back to the
+    // raw /api/me snapshot when not ticking.
+    function renderTrialBanner(trial, overrides) {
       const chatEl = document.getElementById('trial-chat-remaining');
+      const genEl  = document.getElementById('trial-gen-remaining');
       const oralEl = document.getElementById('trial-oral-remaining');
-      if (!trial) return;
-      const rem = trial.seconds_remaining ?? 0;
-      const label = rem > 0 ? `${fmtTrialTime(rem)} remaining` : 'Trial ended';
-      if (chatEl) chatEl.textContent = label;
-      if (oralEl) oralEl.textContent = '';
-      updateTrialCountdownBadge(rem);
-    }
-
-    // ---- Trial polling ----
-    // Started from showAppShell() when the user is on a free trial.
-    // Calls /api/trial_status every 60 s, ticks the badge locally every second.
-    let _trialPollInterval = null;
-    let _trialTickInterval = null;
-    let _trialSecondsLeft  = null;
-
-    function stopTrialPolling() {
-      clearInterval(_trialPollInterval);
-      clearInterval(_trialTickInterval);
-      _trialPollInterval = null;
-      _trialTickInterval = null;
-    }
-
-    async function _fetchTrialStatus() {
-      try {
-        const res = await apiFetch('/api/trial_status');
-        if (!res.ok) return null;
-        return await res.json();
-      } catch { return null; }
-    }
-
-    function _handleTrialStatus(status) {
-      if (!status) return;
-      if (status.is_paid) {
-        // User just upgraded — clear everything trial-related.
-        stopTrialPolling();
-        updateTrialCountdownBadge(null);
-        document.getElementById('trial-banner')?.classList.add('hidden');
-        document.getElementById('trial-expired-modal')?.classList.add('hidden');
-        return;
+      const chatSecs = overrides?.chat ?? trial.chat?.seconds_remaining;
+      const oralSecs = overrides?.oral ?? trial.oral?.seconds_remaining;
+      if (chatEl) {
+        chatEl.textContent = (trial.chat?.expired || chatSecs <= 0)
+          ? 'CFI Chat used'
+          : (trial.chat?.used
+              ? `CFI Chat: ${fmtSeconds(chatSecs)}`
+              : '30 min CFI Chat available');
       }
-      _trialSecondsLeft = status.seconds_remaining ?? 0;
-      if (status.trial_expired) {
-        stopTrialPolling();
-        updateTrialCountdownBadge(0);
-        showTrialExpiredModal();
-        return;
+      if (genEl) {
+        genEl.textContent = trial.generate?.expired
+          ? 'Quizzes/study used'
+          : `${trial.generate?.remaining ?? 1} study/quiz set available`;
       }
-      updateTrialCountdownBadge(_trialSecondsLeft);
-      if (_trialSecondsLeft <= 300) {
-        maybeShowTrialWarningToast();
+      if (oralEl) {
+        oralEl.textContent = (trial.oral?.expired || oralSecs <= 0)
+          ? 'DPE oral session used'
+          : (trial.oral?.used
+              ? `DPE oral: ${fmtSeconds(oralSecs)}`
+              : 'one 30-min DPE oral session available');
       }
     }
-
-    function startTrialPolling(initialSecondsRemaining) {
-      stopTrialPolling();  // idempotent — cancel any prior poll loop
-      _trialSecondsLeft = initialSecondsRemaining ?? (30 * 60);
-
-      // Immediately apply the initial state from /api/me (no extra fetch needed).
-      updateTrialCountdownBadge(_trialSecondsLeft);
-      if (_trialSecondsLeft <= 0) { showTrialExpiredModal(); return; }
-      if (_trialSecondsLeft <= 300) { maybeShowTrialWarningToast(); }
-
-      // Tick badge every second (local decrement — no server round-trip).
-      _trialTickInterval = setInterval(() => {
-        if (_trialSecondsLeft == null) return;
-        _trialSecondsLeft = Math.max(0, _trialSecondsLeft - 1);
-        updateTrialCountdownBadge(_trialSecondsLeft);
-        if (_trialSecondsLeft <= 300 && _trialSecondsLeft > 0) {
-          maybeShowTrialWarningToast();
-        }
-        if (_trialSecondsLeft <= 0) {
-          clearInterval(_trialTickInterval);
-          showTrialExpiredModal();
+    // Ticks the cached snapshot down once per second so the banner reflects
+    // elapsed wall-clock time instead of freezing at the last /api/me value.
+    // When a counter hits zero, re-fetch /api/me so the banner/paywall pick
+    // up the authoritative server state (and the ticker stops cleanly).
+    function startTrialBannerTicker() {
+      if (trialBannerInterval) clearInterval(trialBannerInterval);
+      const snap = window._trialSnapshot;
+      if (!snap || (snap.chat == null && snap.oral == null)) return;
+      trialBannerInterval = setInterval(() => {
+        const s = window._trialSnapshot;
+        if (!s || !window.currentTrial) { stopTrialBannerTicker(); return; }
+        const elapsed = Math.floor((Date.now() - s.takenAt) / 1000);
+        const live = {
+          chat: s.chat != null ? Math.max(0, s.chat - elapsed) : null,
+          oral: s.oral != null ? Math.max(0, s.oral - elapsed) : null,
+        };
+        renderTrialBanner(window.currentTrial, live);
+        const chatDone = s.chat != null && live.chat === 0;
+        const oralDone = s.oral != null && live.oral === 0;
+        if (chatDone || oralDone) {
+          stopTrialBannerTicker();
+          fetchMe().then(routeToScreen).catch(() => {});
         }
       }, 1000);
-
-      // Re-sync with the server every 60 seconds.
-      _trialPollInterval = setInterval(async () => {
-        const status = await _fetchTrialStatus();
-        _handleTrialStatus(status);
-      }, 60000);
+    }
+    function stopTrialBannerTicker() {
+      if (trialBannerInterval) { clearInterval(trialBannerInterval); trialBannerInterval = null; }
+      window._trialSnapshot = null;
     }
 
     // Fetch /api/me with the saved token. Returns the full payload
@@ -1205,9 +1016,9 @@
     //   - no sub but trial has any feature available → app + trial banner
     //   - no sub and trial exhausted → paywall
     function routeToScreen(me) {
-      // Logged out at /app: show the login / signup screen. The public
-      // marketing homepage now lives at "/" (guesthomepage.html).
-      if (!me) { showAuthScreen(); return null; }
+      // Logged out: show the home page in browse-only mode. Creating an
+      // account is required to open any feature.
+      if (!me) { showGuestHome(); return null; }
       if (me.subscription?.active) {
         showAppShell(me.user, me.subscription, null);
       } else {
@@ -1234,9 +1045,6 @@
       const submitText = document.getElementById('auth-submit-text');
       const pwHint = document.getElementById('auth-pw-hint');
       const pwInput = document.getElementById('auth-password');
-      const nameField = document.getElementById('auth-name-field');
-      const nameInput = document.getElementById('auth-name');
-      const agreeField = document.getElementById('auth-agree-field');
       hideAuthMessage('error');
       hideAuthMessage('success');
       const activate = (tab) => {
@@ -1252,19 +1060,11 @@
         submitText.textContent = 'Log in';
         pwHint.classList.add('hidden');
         pwInput.setAttribute('autocomplete', 'current-password');
-        nameField.classList.add('hidden');
-        nameInput.removeAttribute('required');
-        agreeField.classList.add('hidden');
-        agreeField.classList.remove('flex');
       } else {
         activate(signupTab); deactivate(loginTab);
         submitText.textContent = 'Create account';
         pwHint.classList.remove('hidden');
         pwInput.setAttribute('autocomplete', 'new-password');
-        nameField.classList.remove('hidden');
-        nameInput.setAttribute('required', '');
-        agreeField.classList.remove('hidden');
-        agreeField.classList.add('flex');
       }
     }
 
@@ -1291,31 +1091,17 @@
       hideAuthMessage('success');
       const email = document.getElementById('auth-email').value.trim();
       const password = document.getElementById('auth-password').value;
-      const name = document.getElementById('auth-name').value.trim();
       if (!email || !password) {
         showAuthMessage('error', 'Email and password are required.');
         return;
       }
-      if (authMode === 'signup' && !name) {
-        showAuthMessage('error', 'First name is required.');
-        return;
-      }
-      if (authMode === 'signup' && !document.getElementById('auth-agree').checked) {
-        showAuthMessage('error', 'Please agree to the Terms of Service and Privacy Policy to continue.');
-        return;
-      }
       const endpoint = authMode === 'login' ? '/api/login' : '/api/signup';
-      // Login ignores `name`; signup forwards it (stored in user_metadata) and
-      // the Terms/Privacy agreement flag (recorded server-side as consent).
-      const payload = authMode === 'login'
-        ? { email, password }
-        : { email, password, name, agreed: document.getElementById('auth-agree').checked };
       setAuthSubmitting(true);
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ email, password })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -1348,8 +1134,8 @@
       catch { /* server-side failure is harmless; we discard the token regardless */ }
       clearAuthToken();
       window.currentUser = null;
-      // After signing out, return to the public guest homepage at "/".
-      window.location.href = '/';
+      // After signing out, land on the browse-only home page.
+      showGuestHome();
     }
 
     // Open/close helpers for the account dropdown menu.
@@ -1563,11 +1349,10 @@
       if (_userStateLoaded) return;
       _userStateLoaded = true;
       // Run the three requests in parallel — they're independent.
-      const [prefsResp, oralsResp, chatsResp, aircraftResp] = await Promise.allSettled([
+      const [prefsResp, oralsResp, chatsResp] = await Promise.allSettled([
         apiFetch('/api/user_preferences'),
         apiFetch('/api/oral_exam_results?limit=10'),
         apiFetch('/api/chat_sessions?limit=50'),
-        apiFetch('/api/saved_aircraft'),
       ]);
 
       // --- Preferences ---
@@ -1617,16 +1402,6 @@
         } catch (_) {}
       }
 
-      // --- Saved aircraft (FAA lookups the user bookmarked) ---
-      if (aircraftResp.status === 'fulfilled' && aircraftResp.value.ok) {
-        try {
-          const data = await aircraftResp.value.json();
-          aircraftState.saved = Array.isArray(data.aircraft) ? data.aircraft : [];
-          renderSavedAircraftList();
-          renderAircraftSelectors();
-        } catch (_) {}
-      }
-
       // If the chat view was already opened (or about to be), make sure the
       // sidebar reflects the loaded sessions.
       const grid = document.getElementById('chat-history-list');
@@ -1635,301 +1410,6 @@
         renderQuickChips();
       }
     }
-
-
-    // ============================================================
-    //                 AIRCRAFT LOOKUP (FAA registry)
-    // ============================================================
-    // GET /api/aircraft_lookup scrapes the FAA N-number registry server-side;
-    // saved aircraft live in the saved_aircraft table (one row per user +
-    // tail number, upserted). Everything goes through apiFetch so auth and
-    // session-expiry handling match the rest of the app.
-
-    const aircraftState = { current: null, saved: [], trainingN: null, polling: {}, useMine: true };
-    try { aircraftState.trainingN = localStorage.getItem('avx_training_aircraft') || null; } catch (_) {}
-    // "Use my aircraft" preference (default on). The session checkbox toggles it.
-    try { aircraftState.useMine = (localStorage.getItem('avx_use_my_aircraft') !== '0'); } catch (_) {}
-
-    // The "training aircraft": the saved plane the CFI and DPE tailor
-    // questions and examples to. Explicit pick (from the saved list) wins;
-    // otherwise the most recently saved aircraft is used.
-    function getTrainingAircraft() {
-      if (!aircraftState.saved.length) return null;
-      return aircraftState.saved.find(s => s.n_number === aircraftState.trainingN)
-          || aircraftState.saved[0];
-    }
-
-    function setTrainingAircraft(nNumber) {
-      aircraftState.trainingN = nNumber;
-      try { localStorage.setItem('avx_training_aircraft', nNumber); } catch (_) {}
-      renderSavedAircraftList();
-      renderAircraftSelectors();
-    }
-
-    // Toggle for the "Use my aircraft" checkbox shown in CFI Chat / DPE.
-    function setUseMyAircraft(on) {
-      aircraftState.useMine = !!on;
-      try { localStorage.setItem('avx_use_my_aircraft', on ? '1' : '0'); } catch (_) {}
-    }
-
-    // The N-number to attach to a CFI/DPE session (server injects its cached
-    // RAG context). Null when the box is unchecked or no aircraft is saved.
-    function selectedAircraftN() {
-      if (!aircraftState.useMine) return null;
-      const t = getTrainingAircraft();
-      return t ? t.n_number : null;
-    }
-
-    // Render the simple "Use my aircraft" checkbox into every session slot
-    // (one in CFI Chat, one in the DPE picker). Embedding happens at lookup
-    // time, so there's nothing to wait on here — just on/off.
-    function renderAircraftSelectors() {
-      const slots = document.querySelectorAll('.aircraft-selector-slot');
-      if (!slots.length) return;
-      const t = getTrainingAircraft();
-      let inner;
-      if (!t) {
-        inner = '<span class="text-xs text-slate-500">Save an aircraft on the Home tab to tailor your sessions to it.</span>';
-      } else {
-        const checked = aircraftState.useMine ? 'checked' : '';
-        inner =
-          '<label class="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">' +
-            `<input type="checkbox" ${checked} onchange="setUseMyAircraft(this.checked)" class="w-4 h-4 accent-blue-500">` +
-            `Use my aircraft <span class="text-slate-500">(${escapeHtml(t.n_number)})</span>` +
-            '<span class="cursor-help text-slate-500" title="Tailors questions and feedback to your specific aircraft. No added wait time." aria-label="About aircraft tailoring">&#9432;</span>' +
-          '</label>';
-      }
-      slots.forEach(slot => { slot.innerHTML = inner; });
-      ensureAircraftPolling();
-    }
-
-    // For any saved aircraft whose embeddings are still pending, poll
-    // /api/aircraft_status every 5s until processed, then flip it to "Ready".
-    function ensureAircraftPolling() {
-      for (const s of (aircraftState.saved || [])) {
-        if (s.processed_at) continue;
-        if (aircraftState.polling[s.n_number]) continue;
-        aircraftState.polling[s.n_number] = setInterval(() => pollAircraftStatus(s.n_number), 5000);
-        pollAircraftStatus(s.n_number);  // kick once now so a warm cache shows Ready immediately
-      }
-    }
-
-    async function pollAircraftStatus(nNumber) {
-      try {
-        const res = await apiFetch(`/api/aircraft_status?n=${encodeURIComponent(nNumber)}`);
-        if (!res.ok) return;
-        const data = await res.json().catch(() => ({}));
-        if (data && data.processed) {
-          const row = aircraftState.saved.find(s => s.n_number === nNumber);
-          if (row) row.processed_at = data.processed_at || new Date().toISOString();
-          const t = aircraftState.polling[nNumber];
-          if (t) { clearInterval(t); delete aircraftState.polling[nNumber]; }
-          renderSavedAircraftList();
-          renderAircraftSelectors();
-        }
-      } catch (_) { /* transient network error — keep polling */ }
-    }
-
-    // Appended to the CFI chat + conversational-DPE system prompts.
-    function aircraftContextBlock() {
-      const t = getTrainingAircraft();
-      if (!t || !t.data) return '';
-      const d = t.data;
-      const bits = [
-        `N-number: ${t.n_number}`,
-        (d.manufacturer || d.model) ? `Make/model: ${[d.manufacturer, d.model].filter(Boolean).join(' ')}${d.year ? ' (' + d.year + ')' : ''}` : null,
-        d.aircraft_type ? `Type: ${d.aircraft_type}` : null,
-        d.engine_type ? `Engine: ${d.engine_type}` : null,
-        (d.city && d.state) ? `Based: ${d.city}, ${d.state}` : null,
-      ].filter(Boolean);
-      return `\n\nSTUDENT'S TRAINING AIRCRAFT (from their saved FAA registry lookup):\n- ${bits.join('\n- ')}\nWhen helpful, tailor examples, numbers, and scenario questions to this specific aircraft — its systems, engine type, and performance class. Stay FAA-accurate. Do NOT invent exact POH figures for this tail number; use typical values for the type and say they are typical.`;
-    }
-
-    // One-line steer for the DPE question generator's user prompt.
-    function aircraftDpeHint() {
-      const t = getTrainingAircraft();
-      if (!t || !t.data) return '';
-      const d = t.data;
-      const desc = [d.manufacturer, d.model, d.year].filter(Boolean).join(' ');
-      return `\nThe student trains in a ${desc || 'saved aircraft'} (${t.n_number}${d.engine_type ? ', ' + d.engine_type + ' engine' : ''}). Where natural, frame 1-2 of the questions as scenarios in THIS aircraft — keep them FAA-accurate and do not invent exact POH numbers for it.`;
-    }
-
-    const AIRCRAFT_FIELDS = [
-      ['manufacturer',  'Manufacturer'],
-      ['model',         'Model'],
-      ['year',          'Year'],
-      ['aircraft_type', 'Type'],
-      ['engine_type',   'Engine'],
-      ['serial_number', 'Serial Number'],
-      ['mode_s_code',   'Mode S (Hex)'],
-      ['owner',         'Registered Owner'],
-      ['city',          'City'],
-      ['state',         'State'],
-    ];
-
-    const MINI_PROP_HTML = '<span class="mini-prop" role="status" aria-label="Loading"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><g fill="#C2A36B"><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(120 20 20)"/><path d="M20 20 C16.8 13 16.8 6.5 20 3.2 C23.2 6.5 23.2 13 20 20 Z" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="4.2" fill="#C2A36B"/><circle cx="20" cy="20" r="1.6" fill="#10151E"/></svg></span>';
-
-    function showAircraftError(msg) {
-      const el = document.getElementById('aircraft-lookup-error');
-      el.textContent = msg;
-      el.classList.remove('hidden');
-    }
-    function hideAircraftError() {
-      document.getElementById('aircraft-lookup-error').classList.add('hidden');
-    }
-
-    function renderAircraftResult(a, { justSaved = false } = {}) {
-      aircraftState.current = a;
-      const isSaved = justSaved || aircraftState.saved.some(s => s.n_number === a.n_number);
-      const rows = AIRCRAFT_FIELDS
-        .filter(([key]) => a[key])
-        .map(([key, label]) => `
-          <div>
-            <div class="text-xs uppercase tracking-wider text-slate-500 mb-0.5">${label}</div>
-            <div class="text-sm text-slate-100">${escapeHtml(String(a[key]))}</div>
-          </div>`).join('');
-      const el = document.getElementById('aircraft-result');
-      el.innerHTML = `
-        <div class="bg-zinc-900 rounded-xl p-5 border border-zinc-800 fade-in">
-          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div class="flex items-center gap-3">
-              <div class="text-2xl font-bold text-slate-100">${escapeHtml(a.n_number || '')}</div>
-              ${a.status ? `<span class="text-xs px-2 py-0.5 bg-zinc-950 border border-zinc-800 text-slate-300 rounded font-semibold">${escapeHtml(a.status)}</span>` : ''}
-            </div>
-            <button type="button" id="aircraft-save-btn" onclick="saveCurrentAircraft()" ${isSaved ? 'disabled' : ''}
-                    class="px-4 py-2 text-sm font-semibold rounded-lg transition ${isSaved
-                      ? 'bg-zinc-950 border border-zinc-800 text-slate-500 cursor-default'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'}">
-              ${isSaved ? 'Saved to My Aircraft' : 'Save to My Aircraft'}
-            </button>
-          </div>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">${rows}</div>
-        </div>`;
-      el.classList.remove('hidden');
-    }
-
-    async function handleAircraftLookup(event) {
-      event.preventDefault();
-      const input = document.getElementById('aircraft-n-input');
-      const n = (input.value || '').trim();
-      if (!n) { showAircraftError('Enter an N-number first, e.g. N172SP.'); return; }
-      hideAircraftError();
-      const btn = document.getElementById('aircraft-lookup-btn');
-      const label = document.getElementById('aircraft-lookup-btn-label');
-      const original = label.innerHTML;
-      btn.disabled = true;
-      label.innerHTML = MINI_PROP_HTML + ' Looking up…';
-      try {
-        const res = await apiFetch(`/api/aircraft_lookup?n=${encodeURIComponent(n)}`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          showAircraftError(data.error || 'Lookup failed. Try again in a minute.');
-          document.getElementById('aircraft-result').classList.add('hidden');
-          return;
-        }
-        renderAircraftResult(data.aircraft);
-      } catch (err) {
-        // apiFetch throws on 401 (after routing to the login screen).
-        showAircraftError(err.message || 'Lookup failed.');
-      } finally {
-        btn.disabled = false;
-        label.innerHTML = original;
-        if (window.lucide) lucide.createIcons();
-      }
-    }
-
-    async function saveCurrentAircraft() {
-      const a = aircraftState.current;
-      if (!a) return;
-      const btn = document.getElementById('aircraft-save-btn');
-      if (btn) { btn.disabled = true; btn.innerHTML = MINI_PROP_HTML + ' Saving…'; }
-      try {
-        const res = await apiFetch('/api/saved_aircraft', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ n_number: a.n_number, data: a }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) { showAircraftError(data.error || 'Save failed.'); renderAircraftResult(a); return; }
-        // Refresh the saved list from the returned row (newest first, no dupes).
-        aircraftState.saved = [data.saved, ...aircraftState.saved.filter(s => s.n_number !== data.saved.n_number)];
-        renderSavedAircraftList();
-        renderAircraftSelectors();   // new save → dropdown + Processing… indicator + polling
-        renderAircraftResult(a, { justSaved: true });
-      } catch (err) {
-        showAircraftError(err.message || 'Save failed.');
-        renderAircraftResult(a);
-      }
-    }
-
-    function renderSavedAircraftList() {
-      const el = document.getElementById('saved-aircraft-list');
-      if (!el) return;
-      if (!aircraftState.saved.length) {
-        el.innerHTML = '<div class="text-sm text-slate-500">No saved aircraft yet — look one up and save it.</div>';
-        return;
-      }
-      const trainer = getTrainingAircraft();
-      el.innerHTML = aircraftState.saved.map(s => {
-        const d = s.data || {};
-        const sub = [d.manufacturer, d.model, d.year].filter(Boolean).join(' · ');
-        const owner = d.owner ? escapeHtml(d.owner) : '';
-        const isTrainer = trainer && trainer.n_number === s.n_number;
-        const ragBadge = s.processed_at
-          ? '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Ready</span>'
-          : '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Processing…</span>';
-        return `
-          <div class="flex items-center justify-between gap-3 bg-zinc-900 border ${isTrainer ? 'border-blue-500/60' : 'border-zinc-800'} rounded-lg px-4 py-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-semibold text-slate-100">${escapeHtml(s.n_number)}</span>
-                <span class="text-xs text-slate-500 truncate">${escapeHtml(sub)}</span>
-                ${ragBadge}
-                ${isTrainer ? '<span class="text-xs px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded font-semibold">TRAINING AIRCRAFT</span>' : ''}
-              </div>
-              ${owner ? `<div class="text-xs text-slate-500 truncate mt-0.5">${owner}</div>` : ''}
-            </div>
-            <div class="flex items-center gap-3 flex-shrink-0">
-              ${isTrainer ? '' : `<button type="button" onclick="setTrainingAircraft('${escapeHtml(s.n_number)}')"
-                      class="text-xs text-blue-400 hover:text-blue-300 underline">Train with this</button>`}
-              <button type="button" onclick="viewSavedAircraft('${escapeHtml(s.n_number)}')"
-                      class="text-xs text-blue-400 hover:text-blue-300 underline">View</button>
-              <button type="button" onclick="removeSavedAircraft('${escapeHtml(s.n_number)}')"
-                      class="text-xs text-rose-400 hover:text-rose-300 underline">Remove</button>
-            </div>
-          </div>`;
-      }).join('');
-      ensureAircraftPolling();  // keep the Ready/Processing badges live
-    }
-
-    function viewSavedAircraft(nNumber) {
-      const row = aircraftState.saved.find(s => s.n_number === nNumber);
-      if (!row || !row.data) return;
-      renderAircraftResult(row.data);
-      document.getElementById('aircraft-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    async function removeSavedAircraft(nNumber) {
-      try {
-        const res = await apiFetch(`/api/saved_aircraft/${encodeURIComponent(nNumber)}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          showAircraftError(data.error || 'Remove failed.');
-          return;
-        }
-        aircraftState.saved = aircraftState.saved.filter(s => s.n_number !== nNumber);
-        renderSavedAircraftList();
-        // If the removed aircraft is showing in the result card, re-render so
-        // its Save button comes back.
-        if (aircraftState.current && aircraftState.current.n_number === nNumber) {
-          renderAircraftResult(aircraftState.current);
-        }
-      } catch (err) {
-        showAircraftError(err.message || 'Remove failed.');
-      }
-    }
-
-    document.getElementById('aircraft-lookup-form').addEventListener('submit', handleAircraftLookup);
 
     // Rebuild the set of recently-asked main-question texts that the user
     // answered correctly/partially. Wrong answers are explicitly NOT included
@@ -2098,83 +1578,6 @@
       });
     }
 
-    // -------- Personalized rotating welcome message (home hero) --------
-    // Picks one message from the bucket matching the client's local time. When a
-    // first name is available we use the {name} templates; otherwise we fall
-    // back to the parallel name-less pool so we never render "undefined".
-    const HOME_GREETINGS = {
-      morning: {  // 5am–11am
-        named: [
-          'Good morning, {name}! Ready to hit the books?',
-          'Early bird gets the certificate, {name}.',
-          'Morning preflight check, {name} — let\'s get started.',
-        ],
-        plain: [
-          'Good morning! Ready to hit the books?',
-          'Early bird gets the certificate.',
-          'Morning preflight check — let\'s get started.',
-        ],
-      },
-      midday: {  // 11am–5pm
-        named: [
-          'Welcome back, {name}!',
-          'Good afternoon, {name}. Let\'s log some study time.',
-          'Back in the pattern, {name}.',
-        ],
-        plain: [
-          'Welcome back!',
-          'Good afternoon. Let\'s log some study time.',
-          'Back in the pattern.',
-        ],
-      },
-      evening: {  // 5pm–9pm
-        named: [
-          'Evening session, {name}? Let\'s make it count.',
-          'Welcome back, {name} — good luck today.',
-          'Time to hit the books, {name}.',
-        ],
-        plain: [
-          'Evening session? Let\'s make it count.',
-          'Welcome back — good luck today.',
-          'Time to hit the books.',
-        ],
-      },
-      night: {  // 9pm–5am
-        named: [
-          'Late night study sesh, {name}?',
-          'Burning the midnight oil, {name}.',
-          'Night owl mode, {name} — the checkride waits for no one.',
-        ],
-        plain: [
-          'Late night study sesh?',
-          'Burning the midnight oil.',
-          'Night owl mode — the checkride waits for no one.',
-        ],
-      },
-    };
-
-    function homeGreetingBucket(hour) {
-      if (hour >= 5 && hour < 11) return 'morning';
-      if (hour >= 11 && hour < 17) return 'midday';
-      if (hour >= 17 && hour < 21) return 'evening';
-      return 'night';  // 9pm–5am
-    }
-
-    function renderHomeGreeting() {
-      const el = document.getElementById('home-greeting');
-      if (!el) return;
-      // First name = first whitespace-delimited token of the stored full name.
-      const firstName = (window.currentUser?.name || '').trim().split(/\s+/)[0];
-      const bucket = HOME_GREETINGS[homeGreetingBucket(new Date().getHours())];
-      const pool = firstName ? bucket.named : bucket.plain;
-      const msg = pool[Math.floor(Math.random() * pool.length)];
-      el.textContent = firstName ? msg.replace('{name}', firstName) : msg;
-      // Replay the existing fade-in animation on each render.
-      el.classList.remove('fade-in');
-      void el.offsetWidth;
-      el.classList.add('fade-in');
-    }
-
     function goto(view) {
       // Logged-out visitors: any feature click goes to create-account/login.
       if (window.isGuest && view !== 'home') {
@@ -2202,7 +1605,6 @@
         renderQuickChips();
       }
       if (view === 'study') renderResourceGrid();
-      if (view === 'home') renderHomeGreeting();
     }
 
     // ============================================================
@@ -2602,9 +2004,7 @@ Style:
         const res = await apiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // Aircraft context is now injected server-side from the RAG cache;
-          // we just pass the selected N-number (null if none).
-          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT, n_number: selectedAircraftN() })
+          body: JSON.stringify({ messages, system: CFI_SYSTEM_PROMPT })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -3692,7 +3092,7 @@ Provide 4-8 keys per question. Output the JSON array only.`;
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system: sys, n_number: selectedAircraftN() })
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system: sys })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `generate failed (${res.status})`);
@@ -3744,7 +3144,7 @@ Provide 4-8 keys per question. Output the JSON array only.`;
     // Fallback keyword grader. Three verdicts: correct (all keys hit),
     // partial (some hit), wrong (none hit). Used when the AI grade call
     // fails (network blip, server down) so the oral never stalls.
-    function gradeAnswer(text, q) {
+    function gradeAnswer(text, q, mode) {
       if (!text) return { result: 'wrong', hits: 0, feedback: '', next_question: null };
       const lower = ' ' + text.toLowerCase() + ' ';
       let hits = 0;
@@ -3756,8 +3156,12 @@ Provide 4-8 keys per question. Output the JSON array only.`;
       }
       const min = q.minHits || 1;
       if (hits >= min) return { result: 'correct', hits, feedback: '', next_question: null };
-      // Partial answers (some keys hit) are now graded as correct, not partial.
-      if (hits > 0)    return { result: 'correct', hits, feedback: '', next_question: null };
+      // Advanced (checkride): some-but-not-all keys hit = a required piece is
+      // missing, so grade partial. Easier modes stay lenient and count it correct.
+      if (hits > 0) {
+        if (mode === 'advanced') return { result: 'partial', hits, feedback: '', next_question: null };
+        return { result: 'correct', hits, feedback: '', next_question: null };
+      }
       return { result: 'wrong', hits, feedback: '', next_question: null };
     }
 
@@ -3797,8 +3201,7 @@ Provide 4-8 keys per question. Output the JSON array only.`;
             answer: text,
             ideal: q.ideal || '',
             difficulty,
-            previous_turns: cleanedPrev,
-            n_number: selectedAircraftN()
+            previous_turns: cleanedPrev
           })
         });
         const data = await res.json();
@@ -3806,21 +3209,22 @@ Provide 4-8 keys per question. Output the JSON array only.`;
         // Map server verdict to internal grade. 'incorrect' from the API is
         // surfaced as 'wrong' in the frontend.
         const v = data.verdict;
-        // Partial verdicts are now treated as correct, not partial.
+        // Advanced (checkride) preserves real partial verdicts; easier modes
+        // stay lenient and treat partial as correct.
         const result = v === 'correct' ? 'correct'
-                    : v === 'partial' ? 'correct'
+                    : v === 'partial' ? (mode === 'advanced' ? 'partial' : 'correct')
                     : 'wrong';
         const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
         return {
           result,
           score: typeof data.score === 'number' ? data.score : defaultScore,
           feedback: data.feedback || '',
-          next_question: data.next_question || null
+          next_question: result === 'partial' ? (data.next_question || null) : null
         };
       } catch (err) {
         // LAST RESORT: dumb keyword matching, so the oral never stalls.
         console.warn('/api/grade unavailable, falling back to keyword grading:', err);
-        return gradeAnswer(text, q);
+        return gradeAnswer(text, q, mode);
       }
     }
 
@@ -3860,12 +3264,15 @@ Reply with ONLY a JSON object (no prose, no markdown fences) of this exact shape
   "verdict": "correct" | "partial" | "wrong",
   "score": <integer 0-100>,
   "feedback": "<1-3 sentences in the examiner's voice, speaking directly to the student about THEIR answer. Use **bold** for key terms. Cite the FAR/AIM when relevant. No keyword talk.>",
-  "next_question": "<if and only if verdict is 'partial': one short follow-up question probing the specific missing piece; otherwise null>"
+  "next_question": "<if and only if verdict is 'partial': one short follow-up question probing the specific missing piece; otherwise null>",
+  "extra_followup": "<checkride only, verdict 'correct' only: one follow-up testing an EXTRA claim the student volunteered; otherwise null>"
 }
 
-CORE-ELEMENT RULE: If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or light on finer detail. Do NOT downgrade a basically-correct answer to "partial"/"wrong" merely for lack of depth. Depth scales with difficulty: at higher difficulty you expect more, but you obtain the missing depth by asking another follow-up question (via next_question), not by failing a sound core answer.
+${difficulty === 'checkride'
+  ? `CHECKRIDE GRADING RULE (STRICT): Completeness is required. If the student LEAVES OUT any required piece of a complete answer (a condition, exception, limitation, value, or step the ideal answer includes), mark "partial" and supply next_question to probe that missing piece — even if the core idea is present. Mark "correct" only when the answer is genuinely complete. If the student VOLUNTEERS EXTRA information beyond the question, do NOT change the grade; instead set extra_followup to one follow-up testing that extra claim (they keep credit unless they answer it wrong). Use extra_followup only when verdict is "correct".`
+  : `CORE-ELEMENT RULE: If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or light on finer detail. Do NOT downgrade a basically-correct answer to "partial"/"wrong" merely for lack of depth. Depth scales with difficulty: at higher difficulty you expect more, but you obtain the missing depth by asking another follow-up question (via next_question), not by failing a sound core answer.
 
-Verdict guidance: "correct" = the core of the question is answered in its basic structure; "partial" = a required piece of the core is genuinely missing (supply next_question to probe it); "wrong" = incorrect, contradicts the rule, or no real attempt (feedback should correct it concisely).`;
+Verdict guidance: "correct" = the core of the question is answered in its basic structure; "partial" = a required piece of the core is genuinely missing (supply next_question to probe it); "wrong" = incorrect, contradicts the rule, or no real attempt (feedback should correct it concisely).`}`;
 
       const userContent =
         `Question you asked:\n${q.q}\n\n` +
@@ -3877,7 +3284,7 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system, n_number: selectedAircraftN() })
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Chat grade failed (${res.status})`);
@@ -3885,16 +3292,18 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
       const parsed = extractJsonObject(data.reply || '');
       if (!parsed || !parsed.verdict) throw new Error('Could not parse examiner JSON');
 
-      // Partial verdicts are now treated as correct, not partial.
+      // Advanced (checkride) preserves real partial verdicts; easier modes stay
+      // lenient and treat partial as correct.
       const result = parsed.verdict === 'correct' ? 'correct'
-                  : parsed.verdict === 'partial' ? 'correct'
+                  : parsed.verdict === 'partial' ? (mode === 'advanced' ? 'partial' : 'correct')
                   : 'wrong';
-      const defaultScore = result === 'correct' ? 90 : 25;
+      const defaultScore = result === 'correct' ? 90 : result === 'partial' ? 65 : 25;
       return {
         result,
         score: typeof parsed.score === 'number' ? parsed.score : defaultScore,
         feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
-        next_question: result === 'partial' && parsed.next_question ? String(parsed.next_question) : null
+        next_question: result === 'partial' && parsed.next_question ? String(parsed.next_question) : null,
+        extra_followup: (mode === 'advanced' && result === 'correct' && parsed.extra_followup) ? String(parsed.extra_followup) : null
       };
     }
 
@@ -3946,6 +3355,17 @@ Verdict guidance: "correct" = the core of the question is answered in its basic 
           + previousTurns.map((p, i) => `  ${i + 1}. Q: ${p.q}\n     A: ${p.a}`).join('\n') + '\n\n'
         : '';
 
+      // At checkride (advanced) difficulty the grading is STRICT and overrides the
+      // lenient core-element rule used by the easier modes: any omitted required
+      // piece makes the answer partially incorrect (with a follow-up), and any
+      // EXTRA volunteered claim earns a no-penalty follow-up that the student only
+      // loses credit on if they then answer it incorrectly.
+      const gradingRule = difficulty === 'checkride'
+        ? `CHECKRIDE GRADING RULE (STRICT — this OVERRIDES any leniency; applies to every answer, including follow-ups):
+- This is a full checkride: completeness is required. If the student LEAVES OUT any required piece of a complete answer (a condition, exception, limitation, numeric value, or step that the ideal answer includes), mark the verdict "partial" (partially incorrect) and set "next_question" to ONE focused follow-up probing that specific missing piece — do this even when the core idea is present. Mark "correct" ONLY when the answer is genuinely complete. Mark "wrong" when it is incorrect, contradicts the rule, or is no real attempt.
+- If the student VOLUNTEERS EXTRA information beyond what the question asked (an additional rule, claim, or detail they raised on their own), do NOT change the grade for it. Instead set "extra_followup" to ONE follow-up question that tests that extra claim. They keep full credit for the original answer and only lose credit if they answer that follow-up incorrectly. Use "extra_followup" only when the verdict is "correct" (i.e. the original answer was otherwise complete); if the answer is already "partial", probe the missing piece via "next_question" instead.`
+        : `CORE-ELEMENT RULE (applies to every answer, including follow-ups): If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or missing finer detail. Do NOT mark an answer "partial" or "wrong" just because it lacks depth. Depth scales with difficulty: as difficulty increases, MORE supporting information is expected, but you obtain it by asking additional follow-up questions, not by downgrading a basically-correct answer. Only use "partial" when a required piece of the core is genuinely missing (then ask one focused follow-up), and "wrong" only when the answer is incorrect, contradicts the rule, or is no real attempt.`;
+
       const system = `You are AVIX acting as an FAA Designated Pilot Examiner (DPE) running a Private Pilot oral exam. Difficulty: ${difficulty}. ${toneByDifficulty[difficulty]}
 
 ${DPE_STYLE}
@@ -3953,7 +3373,7 @@ ${DPE_STYLE}
 You asked the student a question and they just sent a message. First decide what KIND of message it is:
 - "answer": they are attempting to answer the question on the table. Grade it on its merits (understanding, not keywords).
 
-CORE-ELEMENT RULE (applies to every answer, including follow-ups): If the student answers the CORE of the question in its basic structure, mark it "correct" — even if phrased loosely or missing finer detail. Do NOT mark an answer "partial" or "wrong" just because it lacks depth. Depth scales with difficulty: as difficulty increases, MORE supporting information is expected, but you obtain it by asking additional follow-up questions, not by downgrading a basically-correct answer. Only use "partial" when a required piece of the core is genuinely missing (then ask one focused follow-up), and "wrong" only when the answer is incorrect, contradicts the rule, or is no real attempt. At checkride difficulty, ask more follow-ups to probe for the missing depth rather than failing a sound core answer.
+${gradingRule}
 - "request_topic": they are asking to cover or switch to a different subject (e.g. "can we do NTSB questions", "let's talk weather", "skip to emergencies"). Map it to the closest available topic.
 - "question": they are asking YOU something — a clarification or a question about the material or the exam itself.
 - "meta": small talk, pacing ("slow down"), "not sure where to start", etc.
@@ -3967,6 +3387,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
   "verdict": "correct" | "partial" | "wrong" | null,   // answer only, else null
   "score": <integer 0-100> | null,                       // answer only
   "next_question": "<answer+partial only: one focused follow-up probing the missing piece; else null>",
+  "extra_followup": "<answer+correct only, checkride only: one follow-up testing an EXTRA claim the student volunteered; else null>",
   "requested_topic": "<request_topic only: the EXACT topic string from the available list; else null>"
 }`;
 
@@ -3980,7 +3401,7 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system, n_number: selectedAircraftN() })
+        body: JSON.stringify({ messages: [{ role: 'user', content: userContent }], system })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Examiner turn failed (${res.status})`);
@@ -3990,13 +3411,26 @@ Reply with ONLY a JSON object (no prose, no markdown fences):
       const intent = ['answer','request_topic','question','meta'].includes(parsed.intent) ? parsed.intent : 'answer';
       const out = { intent, reply: typeof parsed.reply === 'string' ? parsed.reply : '' };
       if (intent === 'answer') {
-        // Partial verdicts are now treated as correct, not partial.
-        out.result = parsed.verdict === 'correct' ? 'correct'
-                   : parsed.verdict === 'partial' ? 'correct'
-                   : 'wrong';
+        // Advanced (checkride) keeps the real 3-verdict scale: a "partial" stays
+        // partial so missing info is penalized and probed. Easier modes remain
+        // lenient — a "partial" there still counts as correct.
+        if (mode === 'advanced') {
+          out.result = parsed.verdict === 'correct' ? 'correct'
+                     : parsed.verdict === 'partial' ? 'partial'
+                     : 'wrong';
+        } else {
+          out.result = parsed.verdict === 'correct' ? 'correct'
+                     : parsed.verdict === 'partial' ? 'correct'
+                     : 'wrong';
+        }
         out.score = typeof parsed.score === 'number' ? parsed.score : null;
         out.feedback = out.reply;  // the examiner's spoken reply IS the feedback
         out.next_question = out.result === 'partial' && parsed.next_question ? String(parsed.next_question) : null;
+        // Advanced only: an extra-info follow-up rides along with a correct answer.
+        // It triggers a no-penalty probe; the student only loses credit if they
+        // then answer it wrong (handled by grading that follow-up as its own turn).
+        out.extra_followup = (mode === 'advanced' && out.result === 'correct' && parsed.extra_followup)
+          ? String(parsed.extra_followup) : null;
       } else if (intent === 'request_topic') {
         // Snap to an exact known topic (case-insensitive), else null.
         const want = String(parsed.requested_topic || '').toLowerCase();
@@ -4174,7 +3608,7 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system, n_number: selectedAircraftN() })
+        body: JSON.stringify({ messages: [{ role: 'user', content: user }], system })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `phrase failed (${res.status})`);
@@ -4352,7 +3786,8 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
           result: turn.result,
           score: typeof turn.score === 'number' ? turn.score : (turn.result === 'correct' ? 90 : turn.result === 'partial' ? 65 : 25),
           feedback: turn.feedback || '',
-          next_question: turn.result === 'partial' ? (turn.next_question || null) : null
+          next_question: turn.result === 'partial' ? (turn.next_question || null) : null,
+          extra_followup: turn.extra_followup || null
         };
       } else {
         grading = await gradeAnswerAI(text, gradeable, t.mode, previousTurns);
@@ -4365,12 +3800,24 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       // difficulty's follow-up budget for this topic isn't exhausted.
       const followupsAllowed = cfg.followups || 0;
       const followupsUsed = isFollowup ? (t.followupIdx + 1) : 0;
-      const doFollowup = grading.result === 'partial'
-                      && !!grading.next_question
-                      && followupsUsed < followupsAllowed;
+      const budgetLeft = followupsUsed < followupsAllowed;
+      // Two kinds of follow-up can fire:
+      //   missing  → verdict 'partial' with a next_question (the student left out a
+      //              required piece; this turn IS penalized).
+      //   extra    → verdict 'correct' with an extra_followup (advanced only; the
+      //              student volunteered an extra claim; this turn is NOT penalized,
+      //              they only lose credit if they answer the follow-up wrong).
+      const missingFollowup = grading.result === 'partial' && !!grading.next_question;
+      const extraFollowup = grading.result === 'correct' && !!grading.extra_followup;
+      const followupQuestion = missingFollowup ? grading.next_question
+                            : extraFollowup ? grading.extra_followup
+                            : null;
+      const doFollowup = !!followupQuestion && budgetLeft;
 
       // Render the DPE's response based on verdict.
-      //   correct → green bubble with a brief affirmation, no follow-up.
+      //   correct (no extra) → green bubble with a brief affirmation, no follow-up.
+      //   correct + extra follow-up → neutral bubble: affirm, then ask the probe
+      //             (no penalty). The next answer is graded against it.
       //   partial + doFollowup → yellow bubble that IS the follow-up question
       //             (no acknowledgment preamble). The next answer is graded
       //             against it.
@@ -4381,12 +3828,18 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       const fbHtml = grading.feedback ? formatClaudeReply(grading.feedback) : '';
       let reaction, reactionRole;
       if (grading.result === 'correct') {
-        reaction = fbHtml || `<strong>Correct.</strong>`;
-        reactionRole = 'bot-correct';
+        if (extraFollowup && doFollowup) {
+          // No-penalty probe of an extra claim: affirm the answer, then ask.
+          reactionRole = 'bot';
+          reaction = (fbHtml ? fbHtml + '<br><br>' : '') + formatClaudeReply(followupQuestion);
+        } else {
+          reaction = fbHtml || `<strong>Correct.</strong>`;
+          reactionRole = 'bot-correct';
+        }
       } else if (grading.result === 'partial') {
         reactionRole = 'bot-partial';
         if (doFollowup) {
-          reaction = formatClaudeReply(grading.next_question);
+          reaction = formatClaudeReply(followupQuestion);
         } else {
           reaction = gradeable.ideal
             ? `<em class="text-slate-300 not-italic">For completeness:</em> ${gradeable.ideal}`
@@ -4424,8 +3877,8 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       // of these happens, so a follow-up and a new main can never both appear.)
       if (doFollowup) {
         t.followupIdx = isFollowup ? t.followupIdx + 1 : 0;
-        t.currentFollowup = { q: grading.next_question, ideal: '', topic: q.topic };
-        t.history.push({ role:'dpe-fu', topic: q.topic, content: grading.next_question });
+        t.currentFollowup = { q: followupQuestion, ideal: '', topic: q.topic };
+        t.history.push({ role:'dpe-fu', topic: q.topic, content: followupQuestion });
       } else {
         await advanceMain();
       }
@@ -4696,7 +4149,6 @@ You are given a seed question (the concept to test) and a reference answer. Ask 
       // profile-menu sign-out.
       initAuthUI();
       initPaywallUI();
-      initTrialExpiredModal();
       // If Stripe just redirected us back, sync the subscription before
       // we decide which screen to show.
       const cameBackFromCheckout = await handleCheckoutReturn();
